@@ -54,7 +54,7 @@ pub fn menu_interaction_system(
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
-            next_game_state.set(GameState::Map);
+            next_game_state.set(GameState::Shop);
         }
     }
 }

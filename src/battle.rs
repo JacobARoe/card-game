@@ -9,6 +9,9 @@ use crate::states::*;
 #[derive(Component)]
 pub struct DamageFlashUi;
 
+#[derive(Component)]
+pub struct BlockFlashUi;
+
 pub fn setup_battle(
     mut commands: Commands,
     mut next_turn_state: ResMut<NextState<TurnState>>,
@@ -20,19 +23,27 @@ pub fn setup_battle(
     println!("Setting up battle...");
 
     // Determine Enemy Type
-    let level = game_map.current_node.map(|(l, _)| l).unwrap_or(0);
-    let mut rng = thread_rng();
-    let enemy_kind = if level == 5 {
-        EnemyKind::Dragon
-    } else if level >= 3 {
-        if rng.gen_bool(0.7) { EnemyKind::Orc } else { EnemyKind::Goblin }
+    let (level, node_type) = if let Some((l, i)) = game_map.current_node {
+        (l, game_map.levels[l][i].node_type)
     } else {
-        if rng.gen_bool(0.9) { EnemyKind::Goblin } else { EnemyKind::Orc }
+        (0, NodeType::Battle)
+    };
+
+    let mut rng = thread_rng();
+    let enemy_kind = match node_type {
+        NodeType::Boss => EnemyKind::Dragon,
+        NodeType::Elite => EnemyKind::DarkKnight,
+        _ => if level >= 3 {
+            if rng.gen_bool(0.7) { EnemyKind::Orc } else { EnemyKind::Goblin }
+        } else {
+            if rng.gen_bool(0.9) { EnemyKind::Goblin } else { EnemyKind::Orc }
+        }
     };
     let (hp, name, color) = match enemy_kind {
         EnemyKind::Goblin => (20, "Goblin", Color::srgb(0.2, 0.8, 0.2)),
         EnemyKind::Orc => (40, "Orc", Color::srgb(0.8, 0.2, 0.2)),
         EnemyKind::Dragon => (150, "Dragon", Color::srgb(0.6, 0.1, 0.8)),
+        EnemyKind::DarkKnight => (80, "Dark Knight", Color::srgb(0.1, 0.1, 0.3)),
     };
 
     // Spawn Enemy with Visuals
@@ -336,6 +347,23 @@ pub fn setup_battle(
         DamageFlashUi,
     ));
 
+    // Spawn Block Flash Overlay
+    commands.spawn((
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: Color::srgba(0.0, 0.5, 1.0, 0.0).into(),
+            z_index: ZIndex::Global(95),
+            ..default()
+        },
+        BattleEntity,
+        BlockFlashUi,
+    ));
+
     // Reset Reward Store for the new battle
     *reward_store = RewardStore::default();
 
@@ -493,6 +521,7 @@ pub fn update_enemy_tooltip_system(
             EnemyKind::Goblin => (5, "Stabs"),
             EnemyKind::Orc => (12, "Smashes"),
             EnemyKind::Dragon => (25, "Incinerates"),
+            EnemyKind::DarkKnight => (18, "Executes"),
         };
         
         let mut final_damage = base_damage;
@@ -512,6 +541,7 @@ pub fn play_card_system(
     mut enemy_query: Query<(&mut Health, &mut Block, &mut StatusStore), (With<Enemy>, Without<Player>)>,
     mut player_query: Query<(&mut Energy, &StatusStore, &RelicStore, &mut Health), With<Player>>,
     mut player_block_query: Query<&mut Block, (With<Player>, Without<Enemy>)>,
+    mut block_flash_query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
 ) {
     for (card_entity, card_data, interaction) in card_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -526,6 +556,9 @@ pub fn play_card_system(
                 if let Ok(mut block) = player_block_query.get_single_mut() {
                     block.value += card_data.block;
                     println!("Player gains {} block", card_data.block);
+                    for mut bg in &mut block_flash_query {
+                        bg.0 = Color::srgba(0.0, 0.5, 1.0, 0.3).into();
+                    }
                 }
             }
 
@@ -697,6 +730,7 @@ pub fn enemy_turn_system(
         EnemyKind::Goblin => (5, "Stabs"),
         EnemyKind::Orc => (12, "Smashes"),
         EnemyKind::Dragon => (25, "Incinerates"),
+        EnemyKind::DarkKnight => (18, "Executes"),
     };
 
     let mut final_damage = damage;
@@ -732,13 +766,20 @@ pub fn enemy_turn_system(
     println!("Player's turn.");
 }
 
-pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<RewardStore>) {
+pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<RewardStore>, game_map: Res<GameMap>) {
     // Generate rewards if not already generated
     if !reward_store.generated {
         let mut rng = thread_rng();
         
+        let node_type = if let Some((l, i)) = game_map.current_node {
+            game_map.levels[l][i].node_type
+        } else {
+            NodeType::Battle
+        };
+
         // Gold Reward
-        reward_store.gold_reward = Some(rng.gen_range(20..=50));
+        let (min, max) = if node_type == NodeType::Elite { (50, 100) } else { (20, 50) };
+        reward_store.gold_reward = Some(rng.gen_range(min..=max));
 
         // Card Reward (3 random choices)
         let mut choices = Vec::new();
@@ -1082,6 +1123,18 @@ pub fn game_over_interaction_system(
 pub fn update_damage_flash_system(
     time: Res<Time>,
     mut query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
+) {
+    for mut bg in &mut query {
+        let a = bg.0.alpha();
+        if a > 0.0 {
+            bg.0.set_alpha((a - time.delta_seconds() * 2.0).max(0.0));
+        }
+    }
+}
+
+pub fn update_block_flash_system(
+    time: Res<Time>,
+    mut query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
 ) {
     for mut bg in &mut query {
         let a = bg.0.alpha();

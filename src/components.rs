@@ -8,6 +8,7 @@ pub enum EnemyKind {
     Goblin,
     Orc,
     Dragon,
+    DarkKnight,
 }
 
 #[derive(Component)]
@@ -165,6 +166,8 @@ pub enum NodeType {
     Shop,
     Rest,
     Boss,
+    Elite,
+    Event,
 }
 
 #[derive(Component)]
@@ -272,4 +275,12 @@ pub struct PotionContainer;
 pub struct BuyPotionButton {
     pub potion: PotionType,
     pub cost: i32,
+}
+
+#[derive(Component)]
+pub struct EventUI;
+
+#[derive(Component)]
+pub struct EventOptionButton {
+    pub effect_id: usize,
 }

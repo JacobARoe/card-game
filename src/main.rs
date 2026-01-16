@@ -12,6 +12,7 @@ mod ui;
 mod menu;
 mod deck_view;
 mod discard_view;
+mod event;
 
 use components::*;
 use states::*;
@@ -24,6 +25,7 @@ use ui::*;
 use menu::*;
 use deck_view::*;
 use discard_view::*;
+use event::*;
 
 fn main() {
     App::new()
@@ -50,6 +52,7 @@ fn main() {
                 potion_interaction_system,
                 update_pile_ui,
                 update_damage_flash_system,
+                update_block_flash_system,
                 update_enemy_tooltip_system,
                 end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
                 discard_pile_click_system.run_if(in_state(TurnState::PlayerTurn)),
@@ -65,8 +68,8 @@ fn main() {
         .add_systems(Update, reward_select_card_interaction_system.run_if(in_state(GameState::RewardSelectCard)))
         .add_systems(OnExit(GameState::RewardSelectCard), despawn_screen::<RewardSelectCardUI>)
         .add_systems(OnEnter(GameState::Map), setup_map_screen)
-        .add_systems(Update, map_interaction_system.run_if(in_state(GameState::Map)))
-        .add_systems(OnExit(GameState::Map), despawn_screen::<MapUI>)
+        .add_systems(Update, (map_interaction_system, tooltip_system).run_if(in_state(GameState::Map)))
+        .add_systems(OnExit(GameState::Map), (despawn_screen::<MapUI>, despawn_screen::<TooltipUi>))
         .add_systems(OnEnter(GameState::Shop), setup_shop_screen)
         .add_systems(Update, (shop_interaction_system, shop_nav_system, update_shop_gold_ui).run_if(in_state(GameState::Shop)))
         .add_systems(OnExit(GameState::Shop), despawn_screen::<ShopUI>)
@@ -85,5 +88,8 @@ fn main() {
         .add_systems(OnEnter(TurnState::ViewingDiscard), setup_view_discard_overlay)
         .add_systems(Update, view_discard_interaction_system.run_if(in_state(TurnState::ViewingDiscard)))
         .add_systems(OnExit(TurnState::ViewingDiscard), despawn_screen::<ViewDiscardUI>)
+        .add_systems(OnEnter(GameState::Event), setup_event_screen)
+        .add_systems(Update, event_interaction_system.run_if(in_state(GameState::Event)))
+        .add_systems(OnExit(GameState::Event), despawn_screen::<EventUI>)
         .run();
 }

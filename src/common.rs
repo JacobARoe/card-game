@@ -25,7 +25,7 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         StatusStore::default(),
         RelicStore { relics: vec![Relic::BurningBlood] },
         PotionStore { potions: vec![PotionType::Health, PotionType::Strength] },
-        Gold { amount: 100 },
+        Gold { amount: 200 },
     ));
 
     // Create Deck
@@ -33,19 +33,11 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
     for _ in 0..5 {
         deck_cards.push(Card { name: "Strike".to_string(), damage: 6, block: 0, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false });
     }
-    for _ in 0..4 {
+    for _ in 0..2 {
         deck_cards.push(Card { name: "Bash".to_string(), damage: 10, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, upgraded: false });
     }
-    for _ in 0..4 {
+    for _ in 0..3 {
         deck_cards.push(Card { name: "Defend".to_string(), damage: 0, block: 5, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false });
-    }
-    // Add Poison Cards
-    for _ in 0..2 {
-        deck_cards.push(Card { name: "Poison Stab".to_string(), damage: 4, block: 0, cost: 1, apply_poison: 3, apply_weak: 0, upgraded: false });
-    }
-    // Add Weak Cards
-    for _ in 0..2 {
-        deck_cards.push(Card { name: "Intimidate".to_string(), damage: 0, block: 0, cost: 0, apply_poison: 0, apply_weak: 2, upgraded: false });
     }
 
     // Shuffle
@@ -62,23 +54,39 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
     // Level 0: Start (3 Battle Nodes)
     let mut start_nodes = Vec::new();
     for _ in 0..3 {
-        start_nodes.push(MapNodeData { node_type: NodeType::Battle, next_indices: vec![] });
+        start_nodes.push(MapNodeData { 
+            node_type: NodeType::Battle, 
+            next_indices: vec![],
+            y_jitter: rng.gen_range(-20.0..20.0),
+        });
     }
     levels.push(start_nodes);
 
     // Levels 1-4: Random Encounters
-    for _ in 1..=4 {
+    for i in 1..=4 {
         let mut nodes = Vec::new();
         for _ in 0..3 { // 3 nodes per level
-            let r = rng.gen_range(0..10);
-            let node_type = if r < 6 { NodeType::Battle } else if r < 8 { NodeType::Shop } else { NodeType::Rest };
-            nodes.push(MapNodeData { node_type, next_indices: vec![] });
+            let r = rng.gen_range(0..100);
+            let node_type = if i >= 2 && r < 20 { NodeType::Elite }
+                else if r < 50 { NodeType::Battle } 
+                else if r < 70 { NodeType::Event }
+                else if r < 85 { NodeType::Shop } 
+                else { NodeType::Rest };
+            nodes.push(MapNodeData { 
+                node_type, 
+                next_indices: vec![],
+                y_jitter: rng.gen_range(-40.0..40.0),
+            });
         }
         levels.push(nodes);
     }
 
     // Level 5: Boss
-    levels.push(vec![MapNodeData { node_type: NodeType::Boss, next_indices: vec![] }]);
+    levels.push(vec![MapNodeData { 
+        node_type: NodeType::Boss, 
+        next_indices: vec![],
+        y_jitter: 0.0,
+    }]);
 
     // Connect Levels
     for i in 0..5 {

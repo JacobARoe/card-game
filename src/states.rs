@@ -13,6 +13,7 @@ pub enum GameState {
     ViewDeck,
     ShopRemoveCard,
     RewardSelectCard,
+    Event,
 }
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]

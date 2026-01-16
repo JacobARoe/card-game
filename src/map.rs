@@ -12,7 +12,7 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
                 position_type: PositionType::Absolute,
                 ..default()
             },
-            background_color: Color::srgb(0.05, 0.05, 0.05).into(),
+            background_color: Color::srgb(0.02, 0.02, 0.05).into(), // Darker atmosphere
             ..default()
         },
         MapUI,
@@ -25,7 +25,8 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
 
     let get_px_pos = |level: usize, index: usize, total: usize| -> Vec2 {
         let x = 100.0 + x_step * level as f32;
-        let y = window_height / 2.0 + (index as f32 - (total as f32 - 1.0) / 2.0) * 120.0;
+        let base_y = window_height / 2.0 + (index as f32 - (total as f32 - 1.0) / 2.0) * 120.0;
+        let y = base_y; // + game_map.levels[level][index].y_jitter;
         Vec2::new(x, y)
     };
 
@@ -46,28 +47,25 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
                 let is_path_taken = game_map.visited_path.contains(&(l_idx, n_idx)) 
                     && game_map.visited_path.contains(&(l_idx + 1, next_idx));
 
-                let (color, height) = if is_path_taken {
-                    (Color::srgb(0.2, 0.8, 0.2), 6.0)
-                } else {
-                    (Color::srgb(0.5, 0.5, 0.5), 4.0)
-                };
-
-                commands.spawn((
-                    NodeBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(center.x - length / 2.0),
-                            bottom: Val::Px(center.y - height / 2.0),
-                            width: Val::Px(length),
-                            height: Val::Px(height),
+                if is_path_taken {
+                    let height = 6.0;
+                    commands.spawn((
+                        NodeBundle {
+                            style: Style {
+                                position_type: PositionType::Absolute,
+                                left: Val::Px(center.x - length / 2.0),
+                                bottom: Val::Px(center.y - height / 2.0),
+                                width: Val::Px(length),
+                                height: Val::Px(height),
+                                ..default()
+                            },
+                            background_color: Color::srgb(0.2, 0.8, 0.2).into(),
+                            transform: Transform::from_rotation(Quat::from_rotation_z(angle)),
                             ..default()
                         },
-                        background_color: color.into(),
-                        transform: Transform::from_rotation(Quat::from_rotation_z(angle)),
-                        ..default()
-                    },
-                    MapUI,
-                )).set_parent(map_root);
+                        MapUI,
+                    )).set_parent(map_root);
+                }
             }
         }
     }
@@ -87,22 +85,47 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
                 l_idx == 0
             };
             
-            let color = if is_current {
-                Color::srgb(0.2, 1.0, 0.2)
-            } else if is_visited {
-                Color::srgb(0.3, 0.3, 0.3)
-            } else if is_available {
-                Color::srgb(1.0, 1.0, 1.0)
+            // Fog of War Logic: Only show Boss, Visited, Current, and Immediate Next nodes
+            let is_visible = if node.node_type == NodeType::Boss {
+                true
+            } else if is_visited || is_current || is_available {
+                true
             } else {
-                Color::srgb(0.2, 0.2, 0.2)
+                false
+            };
+
+            let color = if is_current {
+                Color::srgb(0.0, 1.0, 0.0) // Bright Green
+            } else if is_visited {
+                Color::srgb(0.4, 0.4, 0.4) // Dim Grey
+            } else if is_available {
+                match node.node_type {
+                    NodeType::Boss => Color::srgb(0.8, 0.0, 0.0),
+                    NodeType::Elite => Color::srgb(0.8, 0.0, 0.8), // Purple
+                    NodeType::Event => Color::srgb(0.5, 0.5, 0.8), // Blue-ish
+                    NodeType::Shop => Color::srgb(0.8, 0.6, 0.0), // Gold
+                    NodeType::Rest => Color::srgb(0.2, 0.6, 0.8), // Cyan
+                    NodeType::Battle => Color::WHITE,
+                }
+            } else if is_visible {
+                Color::srgb(0.6, 0.0, 0.0) // Visible but not reachable (Boss)
+            } else {
+                Color::srgb(0.1, 0.1, 0.15) // Unknown / Dark Blue-Grey
             };
             
-            let size = if node.node_type == NodeType::Boss { 60.0 } else { 40.0 };
-            let label = match node.node_type {
-                NodeType::Battle => "B",
-                NodeType::Shop => "S",
-                NodeType::Rest => "R",
-                NodeType::Boss => "BOSS",
+            let size = if node.node_type == NodeType::Boss { 60.0 } else if node.node_type == NodeType::Elite { 50.0 } else { 40.0 };
+            
+            let (label, tooltip_text) = if is_visible {
+                match node.node_type {
+                    NodeType::Battle => ("B", "Battle: Standard enemy encounter"),
+                    NodeType::Shop => ("S", "Shop: Trade gold for goods"),
+                    NodeType::Rest => ("R", "Rest: Heal or upgrade"),
+                    NodeType::Boss => ("BOSS", "Boss: The final challenge"),
+                    NodeType::Elite => ("E", "Elite: Powerful enemy, rare rewards"),
+                    NodeType::Event => ("?", "Event: Unknown occurrence"),
+                }
+            } else {
+                ("?", "Unknown Location")
             };
 
             let mut node_entity = commands.spawn((
@@ -120,11 +143,12 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
                     },
                     background_color: color.into(),
                     border_color: Color::WHITE.into(),
-                    border_radius: BorderRadius::all(Val::Percent(50.0)),
+                    border_radius: BorderRadius::all(Val::Percent(if is_visible { 50.0 } else { 20.0 })),
                     ..default()
                 },
                 MapNodeButton { level: l_idx, index: n_idx, node_type: node.node_type },
                 MapUI,
+                Tooltip { text: tooltip_text.to_string() },
             ));
             
             node_entity.set_parent(map_root);
@@ -132,8 +156,8 @@ pub fn setup_map_screen(mut commands: Commands, game_map: Res<GameMap>) {
             node_entity.with_children(|p| {
                 p.spawn(TextBundle::from_section(label, TextStyle {
                     font: Handle::default(),
-                    font_size: 16.0,
-                    color: Color::BLACK,
+                    font_size: if is_visible { 16.0 } else { 24.0 },
+                    color: if is_visible { Color::BLACK } else { Color::srgb(0.5, 0.5, 0.5) },
                 }));
             });
         }
@@ -186,9 +210,10 @@ pub fn map_interaction_system(
                 
                 // Transition
                 match node_btn.node_type {
-                    NodeType::Battle | NodeType::Boss => next_game_state.set(GameState::Battle),
+                    NodeType::Battle | NodeType::Boss | NodeType::Elite => next_game_state.set(GameState::Battle),
                     NodeType::Shop => next_game_state.set(GameState::Shop),
                     NodeType::Rest => next_game_state.set(GameState::Rest),
+                    NodeType::Event => next_game_state.set(GameState::Event),
                 }
             }
         }
