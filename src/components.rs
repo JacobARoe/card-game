@@ -83,6 +83,9 @@ pub struct VictoryUI;
 pub struct MapUI;
 
 #[derive(Component)]
+pub struct GameOverUI;
+
+#[derive(Component)]
 pub struct PlayerHealthText;
 
 #[derive(Component)]
@@ -150,3 +153,6 @@ pub struct UpgradeButton;
 
 #[derive(Component)]
 pub struct LeaveRestButton;
+
+#[derive(Component)]
+pub struct RestartButton;

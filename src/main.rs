@@ -34,8 +34,10 @@ fn main() {
                 card_hover_system,
                 update_health_ui,
                 update_energy_ui,
-                update_status_ui,
+                update_status_visuals_system,
+                tooltip_system,
                 update_relic_ui,
+                update_damage_flash_system,
                 end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
             ).run_if(in_state(GameState::Battle))
         )
@@ -54,5 +56,8 @@ fn main() {
         .add_systems(OnEnter(GameState::Rest), setup_rest_screen)
         .add_systems(Update, rest_interaction_system.run_if(in_state(GameState::Rest)))
         .add_systems(OnExit(GameState::Rest), despawn_screen::<RestUI>)
+        .add_systems(OnEnter(GameState::GameOver), setup_game_over_screen)
+        .add_systems(Update, game_over_interaction_system.run_if(in_state(GameState::GameOver)))
+        .add_systems(OnExit(GameState::GameOver), (despawn_screen::<GameOverUI>, setup_game))
         .run();
 }

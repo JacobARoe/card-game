@@ -9,7 +9,12 @@ pub fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-pub fn setup_game(mut commands: Commands) {
+pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
+    // Despawn existing player if any (for restart)
+    for entity in &player_query {
+        commands.entity(entity).despawn_recursive();
+    }
+
     // Spawn Player (Persistent)
     commands.spawn((
         Player,

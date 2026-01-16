@@ -8,6 +8,7 @@ pub enum GameState {
     Shop,
     Rest,
     Map,
+    GameOver,
 }
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
