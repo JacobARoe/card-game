@@ -7,6 +7,7 @@ pub struct Player;
 pub enum EnemyKind {
     Goblin,
     Orc,
+    Dragon,
 }
 
 #[derive(Component)]
@@ -35,6 +36,7 @@ pub struct Block {
 pub struct StatusStore {
     pub poison: i32,
     pub weak: i32,
+    pub strength: i32,
 }
 
 #[derive(Component)]
@@ -86,6 +88,12 @@ pub struct MapUI;
 pub struct GameOverUI;
 
 #[derive(Component)]
+pub struct MainMenuUI;
+
+#[derive(Component)]
+pub struct StartGameButton;
+
+#[derive(Component)]
 pub struct PlayerHealthText;
 
 #[derive(Component)]
@@ -122,12 +130,6 @@ pub struct EndTurnButton;
 pub struct EnemyIntentText;
 
 #[derive(Component)]
-pub struct EnterBattleButton;
-
-#[derive(Component)]
-pub struct VisitShopButton;
-
-#[derive(Component)]
 pub struct VisitRestButton;
 
 #[derive(Component)]
@@ -156,3 +158,118 @@ pub struct LeaveRestButton;
 
 #[derive(Component)]
 pub struct RestartButton;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeType {
+    Battle,
+    Shop,
+    Rest,
+    Boss,
+}
+
+#[derive(Component)]
+pub struct MapNodeButton {
+    pub level: usize,
+    pub index: usize,
+    pub node_type: NodeType,
+}
+
+#[derive(Component)]
+pub struct DeckText;
+
+#[derive(Component)]
+pub struct DiscardText;
+
+#[derive(Component)]
+pub struct ViewDeckUI;
+
+#[derive(Component)]
+pub struct ViewDeckButton;
+
+#[derive(Component)]
+pub struct ReturnFromDeckButton;
+
+#[derive(Component)]
+pub struct DiscardPileButton;
+
+#[derive(Component)]
+pub struct ViewDiscardUI;
+
+#[derive(Component)]
+pub struct ReturnFromDiscardButton;
+
+#[derive(Component)]
+pub struct Tooltip {
+    pub text: String,
+}
+
+#[derive(Component)]
+pub struct TooltipUi;
+
+#[derive(Component)]
+pub struct ShopGoldText;
+
+#[derive(Component)]
+pub struct RemoveCardServiceButton {
+    pub cost: i32,
+}
+
+#[derive(Component)]
+pub struct ShopRemoveUI;
+
+#[derive(Component)]
+pub struct CardToRemoveButton {
+    pub index: usize,
+}
+
+#[derive(Component)]
+pub struct CancelRemoveButton;
+
+#[derive(Component)]
+pub struct RewardUI;
+
+#[derive(Component)]
+pub struct RewardGoldButton;
+
+#[derive(Component)]
+pub struct RewardCardButton;
+
+#[derive(Component)]
+pub struct ProceedButton;
+
+#[derive(Component)]
+pub struct RewardSelectCardUI;
+
+#[derive(Component)]
+pub struct CardChoiceButton {
+    pub card_index: usize,
+}
+
+#[derive(Component)]
+pub struct SkipCardButton;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PotionType {
+    Health,
+    Strength,
+    Energy,
+}
+
+#[derive(Component, Default)]
+pub struct PotionStore {
+    pub potions: Vec<PotionType>,
+}
+
+#[derive(Component)]
+pub struct PotionButton {
+    pub index: usize,
+}
+
+#[derive(Component)]
+pub struct PotionContainer;
+
+#[derive(Component)]
+pub struct BuyPotionButton {
+    pub potion: PotionType,
+    pub cost: i32,
+}

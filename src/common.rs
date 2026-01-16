@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rand::Rng;
 
 use crate::components::*;
 use crate::resources::*;
@@ -23,6 +24,7 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         Block { value: 0 },
         StatusStore::default(),
         RelicStore { relics: vec![Relic::BurningBlood] },
+        PotionStore { potions: vec![PotionType::Health, PotionType::Strength] },
         Gold { amount: 100 },
     ));
 
@@ -52,10 +54,87 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
 
     commands.insert_resource(Deck { cards: deck_cards });
     commands.insert_resource(DiscardPile::default());
+
+    // Generate Map
+    let mut levels = Vec::new();
+    let mut rng = thread_rng();
+
+    // Level 0: Start (3 Battle Nodes)
+    let mut start_nodes = Vec::new();
+    for _ in 0..3 {
+        start_nodes.push(MapNodeData { node_type: NodeType::Battle, next_indices: vec![] });
+    }
+    levels.push(start_nodes);
+
+    // Levels 1-4: Random Encounters
+    for _ in 1..=4 {
+        let mut nodes = Vec::new();
+        for _ in 0..3 { // 3 nodes per level
+            let r = rng.gen_range(0..10);
+            let node_type = if r < 6 { NodeType::Battle } else if r < 8 { NodeType::Shop } else { NodeType::Rest };
+            nodes.push(MapNodeData { node_type, next_indices: vec![] });
+        }
+        levels.push(nodes);
+    }
+
+    // Level 5: Boss
+    levels.push(vec![MapNodeData { node_type: NodeType::Boss, next_indices: vec![] }]);
+
+    // Connect Levels
+    for i in 0..5 {
+        let current_len = levels[i].len();
+        let next_len = levels[i+1].len();
+        
+        for j in 0..current_len {
+            // Ensure at least one connection
+            let next_idx = rng.gen_range(0..next_len);
+            levels[i][j].next_indices.push(next_idx);
+            
+            // Add random extra connections
+            if rng.gen_bool(0.3) {
+                let extra = rng.gen_range(0..next_len);
+                if extra != next_idx {
+                    levels[i][j].next_indices.push(extra);
+                }
+            }
+        }
+        
+        // Ensure every node in next level has a parent
+        for k in 0..next_len {
+            let mut has_parent = false;
+            for j in 0..current_len {
+                if levels[i][j].next_indices.contains(&k) {
+                    has_parent = true;
+                    break;
+                }
+            }
+            if !has_parent {
+                let parent = rng.gen_range(0..current_len);
+                levels[i][parent].next_indices.push(k);
+            }
+        }
+    }
+
+    commands.insert_resource(GameMap {
+        levels,
+        current_node: None,
+        visited_path: Vec::new(),
+    });
+    commands.insert_resource(RewardStore::default());
 }
 
-pub fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
-    for entity in &to_despawn {
-        commands.entity(entity).despawn_recursive();
+pub fn despawn_screen<T: Component>(
+    to_despawn: Query<(Entity, Option<&Parent>), With<T>>,
+    parent_check: Query<(), With<T>>,
+    mut commands: Commands,
+) {
+    for (entity, parent) in &to_despawn {
+        let parent_has_component = parent
+            .and_then(|p| parent_check.get(p.get()).ok())
+            .is_some();
+
+        if !parent_has_component {
+            commands.entity(entity).despawn_recursive();
+        }
     }
 }
