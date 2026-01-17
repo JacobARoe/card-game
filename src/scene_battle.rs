@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ui::Outline;
 use rand::thread_rng;
 use rand::Rng;
 
@@ -449,16 +450,31 @@ pub fn draw_cards_system(
             for card in hand_cards {
                 let (bg_color, border_color) = get_card_visuals(&card);
 
-                parent.spawn((
+                let mut style = card_style.clone();
+                if card.rarity == Rarity::Legendary {
+                    style.border = UiRect::all(Val::Px(4.0));
+                }
+
+                let mut entity_commands = parent.spawn((
                     card.clone(),
                     BaseColor(bg_color),
                     ButtonBundle {
-                        style: card_style.clone(),
+                        style,
                         background_color: bg_color.into(),
                         border_color: border_color.into(),
                         ..default()
                     },
-                )).with_children(|p| {
+                ));
+
+                if card.rarity != Rarity::Common {
+                    entity_commands.insert(Outline {
+                        width: Val::Px(3.0),
+                        offset: Val::Px(2.0),
+                        color: if card.rarity == Rarity::Legendary { Color::srgb(1.0, 1.0, 0.8) } else { Color::srgb(0.0, 0.4, 0.5) },
+                    });
+                }
+
+                entity_commands.with_children(|p| {
                     p.spawn(TextBundle::from_section(card.name.clone(), TextStyle {
                         font: Handle::default(),
                         font_size: 22.0,
@@ -547,6 +563,7 @@ pub fn play_card_system(
     mut block_flash_query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
     window_query: Query<&Window>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
+    mut game_map: ResMut<GameMap>,
 ) {
     for (card_entity, card_data, interaction, transform) in card_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -668,6 +685,25 @@ pub fn play_card_system(
                                         ));
                                     }
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Reveal next nodes on map
+                    if let Some((level, index)) = game_map.current_node {
+                        game_map.visited_path.push((level, index));
+                        let visited = game_map.visited_path.clone();
+                        for l in 0..=level {
+                            for (i, node) in game_map.levels[l].iter_mut().enumerate() {
+                                if !visited.contains(&(l, i)) {
+                                    node.visible = false;
+                                }
+                            }
+                        }
+                        if level + 1 < game_map.levels.len() {
+                            let next_indices = game_map.levels[level][index].next_indices.clone();
+                            for next_idx in next_indices {
+                                game_map.levels[level + 1][next_idx].visible = true;
                             }
                         }
                     }
@@ -807,6 +843,7 @@ pub fn enemy_turn_system(
     mut flash_query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
     window_query: Query<&Window>,
+    mut game_map: ResMut<GameMap>,
 ) {
     let (enemy, mut enemy_block, mut enemy_health, mut enemy_status) = enemy_query.single_mut();
     
@@ -858,6 +895,24 @@ pub fn enemy_turn_system(
                             }
                         }
                     }
+                }
+            }
+        }
+        // Reveal next nodes on map
+        if let Some((level, index)) = game_map.current_node {
+            game_map.visited_path.push((level, index));
+            let visited = game_map.visited_path.clone();
+            for l in 0..=level {
+                for (i, node) in game_map.levels[l].iter_mut().enumerate() {
+                    if !visited.contains(&(l, i)) {
+                        node.visible = false;
+                    }
+                }
+            }
+            if level + 1 < game_map.levels.len() {
+                let next_indices = game_map.levels[level][index].next_indices.clone();
+                for next_idx in next_indices {
+                    game_map.levels[level + 1][next_idx].visible = true;
                 }
             }
         }

@@ -7,6 +7,7 @@ use crate::components::*;
 use crate::resources::*;
 use crate::item_relics::Relic;
 use crate::item_potions::Potion;
+use crate::item_cards;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -40,13 +41,13 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
     // Create Deck
     let mut deck_cards = Vec::new();
     for _ in 0..5 {
-        deck_cards.push(Card { name: "Strike".to_string(), damage: 6, block: 0, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false });
+        deck_cards.push(item_cards::strike());
     }
     for _ in 0..2 {
-        deck_cards.push(Card { name: "Bash".to_string(), damage: 10, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, upgraded: false });
+        deck_cards.push(item_cards::bash());
     }
     for _ in 0..3 {
-        deck_cards.push(Card { name: "Defend".to_string(), damage: 0, block: 5, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false });
+        deck_cards.push(item_cards::defend());
     }
 
     // Shuffle
@@ -66,12 +67,13 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         start_nodes.push(MapNodeData { 
             node_type: NodeType::Battle, 
             next_indices: vec![],
+            visible: true,
         });
     }
     levels.push(start_nodes);
 
-    // Levels 1-4: Random Encounters
-    for i in 1..=4 {
+    // Levels 1-13: Random Encounters
+    for i in 1..=13 {
         let mut nodes = Vec::new();
         for _ in 0..3 { // 3 nodes per level
             let r = rng.gen_range(0..100);
@@ -83,37 +85,55 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
             nodes.push(MapNodeData { 
                 node_type, 
                 next_indices: vec![],
+                visible: false,
             });
         }
         levels.push(nodes);
     }
 
-    // Level 5: Boss
+    // Level 14: Boss
     levels.push(vec![MapNodeData { 
         node_type: NodeType::Boss, 
         next_indices: vec![],
+        visible: false,
     }]);
 
     // Connect Levels
-    for i in 0..5 {
+    for i in 0..14 {
         let current_len = levels[i].len();
         let next_len = levels[i+1].len();
         
         for j in 0..current_len {
-            // Ensure at least one connection
-            let next_idx = rng.gen_range(0..next_len);
-            levels[i][j].next_indices.push(next_idx);
+            // Identify valid adjacent candidates in the next level
+            // A node at index j can connect to j-1, j, j+1 in the next level
+            let min_next = j.saturating_sub(1);
+            let max_next = (j + 1).min(next_len - 1);
             
-            // Add random extra connections
-            if rng.gen_bool(0.3) {
-                let extra = rng.gen_range(0..next_len);
-                if extra != next_idx {
-                    levels[i][j].next_indices.push(extra);
+            let mut candidates: Vec<usize> = (min_next..=max_next).collect();
+            
+            // If strict adjacency yields no candidates (e.g. due to width change), connect to closest
+            if candidates.is_empty() {
+                candidates.push(max_next);
+            }
+            
+            // Ensure at least one connection
+            if let Some(&selected) = candidates.choose(&mut rng) {
+                levels[i][j].next_indices.push(selected);
+            }
+            
+            // Chance to add more connections from valid candidates
+            for &candidate in &candidates {
+                if !levels[i][j].next_indices.contains(&candidate) {
+                    if rng.gen_bool(0.3) { // 30% chance to add extra path
+                        levels[i][j].next_indices.push(candidate);
+                    }
                 }
             }
+            levels[i][j].next_indices.sort();
+            levels[i][j].next_indices.dedup();
         }
         
-        // Ensure every node in next level has a parent
+        // Ensure every node in next level has a parent (to prevent unreachable nodes)
         for k in 0..next_len {
             let mut has_parent = false;
             for j in 0..current_len {
@@ -122,9 +142,24 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
                     break;
                 }
             }
+            
             if !has_parent {
-                let parent = rng.gen_range(0..current_len);
-                levels[i][parent].next_indices.push(k);
+                // Find a valid parent for node k
+                // Valid parents are those where k is adjacent (p-1 <= k <= p+1)
+                let min_parent = k.saturating_sub(1);
+                let max_parent = (k + 1).min(current_len - 1);
+                let mut valid_parents: Vec<usize> = (min_parent..=max_parent).collect();
+                
+                // If strict adjacency yields no parents, use closest
+                if valid_parents.is_empty() {
+                    valid_parents.push(max_parent);
+                }
+                
+                if let Some(&parent) = valid_parents.choose(&mut rng) {
+                    levels[i][parent].next_indices.push(k);
+                    levels[i][parent].next_indices.sort();
+                    levels[i][parent].next_indices.dedup();
+                }
             }
         }
     }

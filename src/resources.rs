@@ -18,6 +18,7 @@ pub struct DiscardPile {
 pub struct MapNodeData {
     pub node_type: NodeType,
     pub next_indices: Vec<usize>,
+    pub visible: bool,
 }
 
 #[derive(Resource, Default)]

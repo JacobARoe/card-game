@@ -52,6 +52,13 @@ pub struct RelicStore {
     pub relics: Vec<Relic>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rarity {
+    Common,
+    Rare,
+    Legendary,
+}
+
 #[derive(Component, Debug, Clone)]
 pub struct Card {
     pub name: String,
@@ -61,6 +68,7 @@ pub struct Card {
     pub apply_poison: i32,
     pub apply_weak: i32,
     pub upgraded: bool,
+    pub rarity: Rarity,
 }
 
 #[derive(Component)]
