@@ -305,3 +305,9 @@ pub struct NextEnemyMove {
     pub steal_gold: i32,
     pub is_charging: bool,
 }
+
+#[derive(Component)]
+pub struct DamageFlashUi;
+
+#[derive(Component)]
+pub struct BlockFlashUi;

@@ -18,6 +18,7 @@ mod item_relics;
 mod item_potions;
 mod scene_rewards;
 mod scene_game_over;
+mod enemies;
 
 use components::*;
 use states::*;
@@ -33,6 +34,7 @@ use scene_discard::*;
 use scene_event::*;
 use scene_rewards::*;
 use scene_game_over::*;
+use enemies::*;
 
 fn main() {
     App::new()
