@@ -188,3 +188,74 @@ pub fn despawn_screen<T: Component>(
         }
     }
 }
+
+pub fn spawn_card_visual(
+    parent: &mut ChildBuilder,
+    asset_server: &AssetServer,
+    card: &Card,
+) {
+    parent.spawn(NodeBundle {
+        style: Style {
+            width: Val::Px(120.0),
+            height: Val::Px(180.0),
+            border: UiRect::all(Val::Px(2.0)),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            margin: UiRect::all(Val::Px(5.0)),
+            ..default()
+        },
+        background_color: Color::srgb(0.15, 0.15, 0.2).into(),
+        border_color: Color::srgb(0.5, 0.5, 0.5).into(),
+        ..default()
+    }).with_children(|card_ui| {
+        // Energy Glyph
+        card_ui.spawn(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                left: Val::Px(-5.0),
+                top: Val::Px(-5.0),
+                width: Val::Px(25.0),
+                height: Val::Px(25.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            background_color: Color::srgb(0.2, 0.7, 0.9).into(),
+            ..default()
+        }).with_children(|energy| {
+            energy.spawn(TextBundle::from_section(
+                card.cost.to_string(),
+                TextStyle {
+                    font: Handle::default(),
+                    font_size: 16.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
+
+        // Card Image
+        card_ui.spawn(ImageBundle {
+            style: Style {
+                width: Val::Px(100.0),
+                height: Val::Px(80.0),
+                margin: UiRect::top(Val::Px(10.0)),
+                ..default()
+            },
+            image: asset_server.load(format!("images/cards/{}.png", card.name)).into(),
+            ..default()
+        });
+
+        // Card Name
+        card_ui.spawn(TextBundle::from_section(
+            &card.name,
+            TextStyle {
+                font: Handle::default(),
+                font_size: 14.0,
+                color: Color::WHITE,
+            },
+        ).with_style(Style {
+            margin: UiRect::top(Val::Px(5.0)),
+            ..default()
+        }));
+    });
+}
