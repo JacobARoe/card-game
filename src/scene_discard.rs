@@ -2,9 +2,9 @@ use bevy::prelude::*;
 use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
-use crate::item_cards::get_card_visuals;
+use crate::common::spawn_card_visual;
 
-pub fn setup_view_discard_overlay(mut commands: Commands, discard: Res<DiscardPile>) {
+pub fn setup_view_discard_overlay(mut commands: Commands, asset_server: Res<AssetServer>, discard: Res<DiscardPile>) {
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -46,41 +46,13 @@ pub fn setup_view_discard_overlay(mut commands: Commands, discard: Res<DiscardPi
             sorted_cards.sort_by(|a, b| a.name.cmp(&b.name));
 
             for card in sorted_cards {
-                let (bg_color, border_color) = get_card_visuals(&card);
-                
-                grid.spawn(NodeBundle {
-                    style: Style {
-                        width: Val::Px(100.0),
-                        height: Val::Px(150.0),
-                        border: UiRect::all(Val::Px(2.0)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
-                    background_color: bg_color.into(),
-                    border_color: border_color.into(),
-                    ..default()
-                }).with_children(|c| {
-                    let text_style = TextStyle {
-                        font: Handle::default(),
-                        font_size: 16.0,
-                        color: Color::WHITE,
-                    };
-                    c.spawn(TextBundle::from_section(card.name.clone(), TextStyle {
-                        font: Handle::default(),
-                        font_size: 22.0,
-                        color: Color::WHITE,
-                    }));
-                    c.spawn(TextBundle::from_section(format!("Cost: {}", card.cost), text_style.clone()));
-                    if card.damage > 0 {
-                        c.spawn(TextBundle::from_section(format!("Dmg: {}", card.damage), text_style.clone()));
-                    }
-                    if card.block > 0 {
-                        c.spawn(TextBundle::from_section(format!("Blk: {}", card.block), text_style.clone()));
-                    }
-                });
+                spawn_card_visual(
+                    grid,
+                    &asset_server,
+                    &card,
+                    (),
+                    |_| {}
+                );
             }
         });
 

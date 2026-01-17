@@ -2,13 +2,15 @@ use bevy::prelude::*;
 use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
-use crate::item_cards::{get_card_visuals, generate_random_card};
+use crate::item_cards::generate_random_card;
 use crate::item_relics::{Relic, get_relic_name};
 use crate::item_potions::{Potion, get_potion_name};
 use rand::{thread_rng, Rng};
+use crate::common::spawn_card_visual;
 
 pub fn setup_shop_screen(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     player_query: Query<&Gold, With<Player>>,
     mut shop_store: ResMut<ShopStore>
 ) {
@@ -80,31 +82,23 @@ pub fn setup_shop_screen(
             // Sell a Card
             for (index, item) in shop_store.cards.iter().enumerate() {
                 if let Some((card, cost)) = item {
-                    let (bg_color, border_color) = get_card_visuals(card);
-                    items.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(120.0),
-                                height: Val::Px(160.0),
-                                margin: UiRect::all(Val::Px(10.0)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                flex_direction: FlexDirection::Column,
-                                border: UiRect::all(Val::Px(2.0)),
-                                ..default()
-                            },
-                            background_color: bg_color.into(),
-                            border_color: border_color.into(),
-                            ..default()
-                        },
-                        BuyCardButton { card: card.clone(), cost: *cost, index },
-                    )).with_children(|b| {
-                        b.spawn(TextBundle::from_section(format!("{}\n{}g", card.name, *cost), TextStyle {
-                            font: Handle::default(),
-                            font_size: 20.0,
-                            color: Color::WHITE,
-                        }));
-                    });
+                    spawn_card_visual(
+                        items,
+                        &asset_server,
+                        card,
+                        (
+                            Button,
+                            Interaction::default(),
+                            BuyCardButton { card: card.clone(), cost: *cost, index },
+                        ),
+                        |card_ui| {
+                            card_ui.spawn(TextBundle::from_section(format!("{}g", cost), TextStyle {
+                                font: Handle::default(),
+                                font_size: 20.0,
+                                color: Color::srgb(1.0, 0.84, 0.0),
+                            }));
+                        }
+                    );
                 }
             }
 
@@ -279,7 +273,7 @@ pub fn update_shop_gold_ui(
     }
 }
 
-pub fn setup_shop_remove_screen(mut commands: Commands, deck: Res<Deck>) {
+pub fn setup_shop_remove_screen(mut commands: Commands, asset_server: Res<AssetServer>, deck: Res<Deck>) {
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -315,38 +309,17 @@ pub fn setup_shop_remove_screen(mut commands: Commands, deck: Res<Deck>) {
             ..default()
         }).with_children(|grid| {
             for (index, card) in deck.cards.iter().enumerate() {
-                let (bg_color, border_color) = get_card_visuals(card);
-                
-                grid.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Val::Px(100.0),
-                            height: Val::Px(150.0),
-                            border: UiRect::all(Val::Px(2.0)),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            flex_direction: FlexDirection::Column,
-                            padding: UiRect::all(Val::Px(5.0)),
-                            ..default()
-                        },
-                        background_color: bg_color.into(),
-                        border_color: border_color.into(),
-                        ..default()
-                    },
-                    CardToRemoveButton { index },
-                )).with_children(|c| {
-                    let text_style = TextStyle {
-                        font: Handle::default(),
-                        font_size: 16.0,
-                        color: Color::WHITE,
-                    };
-                    c.spawn(TextBundle::from_section(card.name.clone(), TextStyle {
-                        font: Handle::default(),
-                        font_size: 22.0,
-                        color: Color::WHITE,
-                    }));
-                    c.spawn(TextBundle::from_section(format!("Cost: {}", card.cost), text_style.clone()));
-                });
+                spawn_card_visual(
+                    grid,
+                    &asset_server,
+                    card,
+                    (
+                        Button,
+                        Interaction::default(),
+                        CardToRemoveButton { index },
+                    ),
+                    |_| {}
+                );
             }
         });
 

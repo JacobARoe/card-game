@@ -3,7 +3,8 @@ use rand::{thread_rng, Rng};
 use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
-use crate::item_cards::{get_card_visuals, generate_random_card};
+use crate::item_cards::generate_random_card;
+use crate::common::spawn_card_visual;
 
 pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<RewardStore>, game_map: Res<GameMap>) {
     // Generate rewards if not already generated
@@ -170,7 +171,7 @@ pub fn reward_interaction_system(
     }
 }
 
-pub fn setup_reward_select_card_screen(mut commands: Commands, reward_store: Res<RewardStore>) {
+pub fn setup_reward_select_card_screen(mut commands: Commands, asset_server: Res<AssetServer>, reward_store: Res<RewardStore>) {
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -206,32 +207,17 @@ pub fn setup_reward_select_card_screen(mut commands: Commands, reward_store: Res
         }).with_children(|cards_container| {
             if let Some(choices) = &reward_store.card_choices {
                 for (index, card) in choices.iter().enumerate() {
-                    let (bg_color, border_color) = get_card_visuals(card);
-
-                    cards_container.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(150.0),
-                                height: Val::Px(220.0),
-                                border: UiRect::all(Val::Px(2.0)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                flex_direction: FlexDirection::Column,
-                                padding: UiRect::all(Val::Px(10.0)),
-                                ..default()
-                            },
-                            background_color: bg_color.into(),
-                            border_color: border_color.into(),
-                            ..default()
-                        },
-                        CardChoiceButton { card_index: index },
-                    )).with_children(|c| {
-                        let text_style = TextStyle { font: Handle::default(), font_size: 18.0, color: Color::WHITE };
-                        c.spawn(TextBundle::from_section(format!("Cost: {}", card.cost), text_style.clone()));
-                        c.spawn(TextBundle::from_section(card.name.clone(), text_style.clone()));
-                        if card.damage > 0 { c.spawn(TextBundle::from_section(format!("Dmg: {}", card.damage), text_style.clone())); }
-                        if card.block > 0 { c.spawn(TextBundle::from_section(format!("Blk: {}", card.block), text_style.clone())); }
-                    });
+                    spawn_card_visual(
+                        cards_container,
+                        &asset_server,
+                        card,
+                        (
+                            Button,
+                            Interaction::default(),
+                            CardChoiceButton { card_index: index },
+                        ),
+                        |_| {}
+                    );
                 }
             }
         });

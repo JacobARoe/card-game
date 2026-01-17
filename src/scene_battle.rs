@@ -1,20 +1,27 @@
 use bevy::prelude::*;
-use bevy::ui::Outline;
 use rand::thread_rng;
 use rand::Rng;
 
 use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
-use crate::item_cards::*;
 use crate::item_relics::Relic;
 use crate::item_potions::{Potion, get_potion_visuals};
+use crate::common::spawn_card_visual;
 
 #[derive(Component)]
 pub struct DamageFlashUi;
 
 #[derive(Component)]
 pub struct BlockFlashUi;
+
+#[derive(Component)]
+pub struct CardAnimating {
+    pub start: Vec2,
+    pub target: Vec2,
+    pub timer: Timer,
+    pub card: Card,
+}
 
 pub fn setup_battle(
     mut commands: Commands,
@@ -376,6 +383,7 @@ pub fn setup_battle(
 
 pub fn draw_cards_system(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_turn_state: ResMut<NextState<TurnState>>,
     mut deck: ResMut<Deck>,
@@ -431,69 +439,19 @@ pub fn draw_cards_system(
     // Spawn cards as children of HandContainer
     if let Ok(container) = hand_container_query.get_single() {
         commands.entity(container).with_children(|parent| {
-            let card_style = Style {
-                width: Val::Px(100.0),
-                height: Val::Px(150.0),
-                margin: UiRect::all(Val::Px(10.0)),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            };
-            let text_style = TextStyle {
-                font: Handle::default(),
-                font_size: 20.0,
-                color: Color::WHITE,
-            };
-
             for card in hand_cards {
-                let (bg_color, border_color) = get_card_visuals(&card);
-
-                let mut style = card_style.clone();
-                if card.rarity == Rarity::Legendary {
-                    style.border = UiRect::all(Val::Px(4.0));
-                }
-
-                let mut entity_commands = parent.spawn((
-                    card.clone(),
-                    BaseColor(bg_color),
-                    ButtonBundle {
-                        style,
-                        background_color: bg_color.into(),
-                        border_color: border_color.into(),
-                        ..default()
-                    },
-                ));
-
-                if card.rarity != Rarity::Common {
-                    entity_commands.insert(Outline {
-                        width: Val::Px(3.0),
-                        offset: Val::Px(2.0),
-                        color: if card.rarity == Rarity::Legendary { Color::srgb(1.0, 1.0, 0.8) } else { Color::srgb(0.0, 0.4, 0.5) },
-                    });
-                }
-
-                entity_commands.with_children(|p| {
-                    p.spawn(TextBundle::from_section(card.name.clone(), TextStyle {
-                        font: Handle::default(),
-                        font_size: 22.0,
-                        color: Color::WHITE,
-                    }));
-                    p.spawn(TextBundle::from_section(format!("Cost: {}", card.cost), text_style.clone()));
-                    if card.damage > 0 {
-                        p.spawn(TextBundle::from_section(format!("Dmg: {}", card.damage), text_style.clone()));
-                    }
-                    if card.block > 0 {
-                        p.spawn(TextBundle::from_section(format!("Blk: {}", card.block), text_style.clone()));
-                    }
-                    if card.apply_poison > 0 {
-                        p.spawn(TextBundle::from_section(format!("Psn: {}", card.apply_poison), text_style.clone()));
-                    }
-                    if card.apply_weak > 0 {
-                        p.spawn(TextBundle::from_section(format!("Wk: {}", card.apply_weak), text_style.clone()));
-                    }
-                });
+                spawn_card_visual(
+                    parent,
+                    &asset_server,
+                    &card,
+                    (
+                        card.clone(),
+                        BaseColor(Color::srgb(0.15, 0.15, 0.2)),
+                        Button,
+                        Interaction::default(),
+                    ),
+                    |_| {},
+                );
             }
         });
     }
@@ -556,23 +514,78 @@ pub fn play_card_system(
     mut commands: Commands,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut discard_pile: ResMut<DiscardPile>,
-    card_query: Query<(Entity, &Card, &Interaction, &GlobalTransform), Changed<Interaction>>,
-    mut enemy_query: Query<(&mut Health, &mut Block, &mut StatusStore), (With<Enemy>, Without<Player>)>,
+    card_query: Query<(Entity, &Card, &Interaction, &GlobalTransform), (Changed<Interaction>, Without<CardAnimating>)>,
+    mut animating_query: Query<(Entity, &mut Style, &mut CardAnimating)>,
+    mut enemy_query: Query<(&mut Health, &mut Block, &mut StatusStore, &GlobalTransform), (With<Enemy>, Without<Player>)>,
     mut player_query: Query<(&mut Energy, &StatusStore, &RelicStore, &mut Health), With<Player>>,
     mut player_block_query: Query<&mut Block, (With<Player>, Without<Enemy>)>,
     mut block_flash_query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
     window_query: Query<&Window>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
     mut game_map: ResMut<GameMap>,
+    time: Res<Time>,
 ) {
+    // 1. Handle Clicks (Start Animation)
     for (card_entity, card_data, interaction, transform) in card_query.iter() {
         if *interaction == Interaction::Pressed {
-            let (mut energy, player_status, player_relics, mut player_health) = if let Ok(e) = player_query.get_single_mut() { e } else { continue };
+            let (mut energy, _, _, _) = if let Ok(e) = player_query.get_single_mut() { e } else { continue };
             if energy.current < card_data.cost {
                 println!("Not enough energy!");
                 continue;
             }
             energy.current -= card_data.cost;
+
+            let window = window_query.single();
+            let half_w = window.width() / 2.0;
+            let half_h = window.height() / 2.0;
+
+            let start_world = transform.translation().truncate();
+            let start_pos = Vec2::new(start_world.x + half_w, start_world.y + half_h);
+
+            let target_pos = if let Ok((_, _, _, enemy_tf)) = enemy_query.get_single() {
+                let t = enemy_tf.translation().truncate();
+                Vec2::new(t.x + half_w, t.y + half_h)
+            } else {
+                start_pos
+            };
+
+            commands.entity(card_entity)
+                .remove::<Interaction>()
+                .remove::<Parent>()
+                .insert(CardAnimating {
+                    start: start_pos,
+                    target: target_pos,
+                    timer: Timer::from_seconds(0.4, TimerMode::Once),
+                    card: card_data.clone(),
+                })
+                .insert(Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(start_pos.x - 60.0),
+                    bottom: Val::Px(start_pos.y - 90.0),
+                    width: Val::Px(120.0),
+                    height: Val::Px(180.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    ..default()
+                })
+                .insert(ZIndex::Global(900));
+        }
+    }
+
+    // 2. Handle Animations
+    for (entity, mut style, mut anim) in animating_query.iter_mut() {
+        anim.timer.tick(time.delta());
+        let t = anim.timer.fraction();
+        let t_eased = 1.0 - (1.0 - t).powi(3);
+        
+        let current = anim.start.lerp(anim.target, t_eased);
+        style.left = Val::Px(current.x - 60.0);
+        style.bottom = Val::Px(current.y - 90.0);
+
+        if anim.timer.finished() {
+            let card_data = &anim.card;
+            println!("Player plays: {}", card_data.name);
 
             if card_data.block > 0 {
                 if let Ok(mut block) = player_block_query.get_single_mut() {
@@ -584,14 +597,10 @@ pub fn play_card_system(
                 }
             }
 
-            println!("Player plays: {}", card_data.name);
+            let (_, player_status, player_relics, mut player_health) = if let Ok(p) = player_query.get_single_mut() { p } else { continue };
 
             // Spawn Particles
-            if let Ok(window) = window_query.get_single() {
-                let half_w = window.width() / 2.0;
-                let half_h = window.height() / 2.0;
-                let pos = transform.translation();
-
+            let pos = anim.target;
                 for _ in 0..20 {
                     let mut rng = thread_rng();
                     let angle = rng.gen_range(0.0..std::f32::consts::TAU);
@@ -603,14 +612,14 @@ pub fn play_card_system(
                         NodeBundle {
                             style: Style {
                                 position_type: PositionType::Absolute,
-                                left: Val::Px(pos.x + half_w),
-                                bottom: Val::Px(pos.y + half_h),
+                                left: Val::Px(pos.x),
+                                bottom: Val::Px(pos.y),
                                 width: Val::Px(6.0),
                                 height: Val::Px(6.0),
                                 ..default()
                             },
                             background_color: Color::srgb(1.0, 0.9, 0.5).into(),
-                            z_index: ZIndex::Global(200),
+                            z_index: ZIndex::Global(950),
                             ..default()
                         },
                         Particle {
@@ -620,9 +629,8 @@ pub fn play_card_system(
                         BattleEntity,
                     ));
                 }
-            }
 
-            for (mut enemy_health, mut enemy_block, mut enemy_status) in enemy_query.iter_mut() {
+            for (mut enemy_health, mut enemy_block, mut enemy_status, _) in enemy_query.iter_mut() {
                 if card_data.apply_poison > 0 { enemy_status.poison += card_data.apply_poison; }
                 if card_data.apply_weak > 0 { enemy_status.weak += card_data.apply_weak; }
 
@@ -708,13 +716,14 @@ pub fn play_card_system(
                         }
                     }
                     next_game_state.set(GameState::Victory);
+                    commands.entity(entity).despawn_recursive();
+                    discard_pile.cards.push(card_data.clone());
                     return;
                 }
             }
 
             discard_pile.cards.push(card_data.clone());
-            commands.entity(card_entity).despawn_recursive();
-            break;
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

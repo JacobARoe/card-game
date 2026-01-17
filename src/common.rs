@@ -193,8 +193,11 @@ pub fn spawn_card_visual(
     parent: &mut ChildBuilder,
     asset_server: &AssetServer,
     card: &Card,
+    extra_bundle: impl Bundle,
+    extension: impl FnOnce(&mut ChildBuilder),
 ) {
-    parent.spawn(NodeBundle {
+    parent.spawn((
+        NodeBundle {
         style: Style {
             width: Val::Px(120.0),
             height: Val::Px(180.0),
@@ -205,34 +208,15 @@ pub fn spawn_card_visual(
             ..default()
         },
         background_color: Color::srgb(0.15, 0.15, 0.2).into(),
-        border_color: Color::srgb(0.5, 0.5, 0.5).into(),
+        border_color: if format!("{:?}", card.rarity).contains("Legendary") {
+            Color::srgb(1.0, 0.8, 0.2).into()
+        } else {
+            Color::srgb(0.5, 0.5, 0.5).into()
+        },
         ..default()
-    }).with_children(|card_ui| {
-        // Energy Glyph
-        card_ui.spawn(NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                left: Val::Px(-5.0),
-                top: Val::Px(-5.0),
-                width: Val::Px(25.0),
-                height: Val::Px(25.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            background_color: Color::srgb(0.2, 0.7, 0.9).into(),
-            ..default()
-        }).with_children(|energy| {
-            energy.spawn(TextBundle::from_section(
-                card.cost.to_string(),
-                TextStyle {
-                    font: Handle::default(),
-                    font_size: 16.0,
-                    color: Color::WHITE,
-                },
-            ));
-        });
-
+        },
+        extra_bundle,
+    )).with_children(|card_ui| {
         // Card Image
         card_ui.spawn(ImageBundle {
             style: Style {
@@ -241,7 +225,7 @@ pub fn spawn_card_visual(
                 margin: UiRect::top(Val::Px(10.0)),
                 ..default()
             },
-            image: asset_server.load(format!("images/cards/{}.png", card.name)).into(),
+            image: asset_server.load(format!("images/cards/{}.jpg", card.name.trim_end_matches('+'))).into(),
             ..default()
         });
 
@@ -257,5 +241,52 @@ pub fn spawn_card_visual(
             margin: UiRect::top(Val::Px(5.0)),
             ..default()
         }));
+
+        // Description
+        let mut desc = String::new();
+        if card.damage > 0 { desc.push_str(&format!("Deal {} Dmg\n", card.damage)); }
+        if card.block > 0 { desc.push_str(&format!("Gain {} Blk\n", card.block)); }
+        if card.apply_poison > 0 { desc.push_str(&format!("Apply {} Psn\n", card.apply_poison)); }
+        if card.apply_weak > 0 { desc.push_str(&format!("Apply {} Wk\n", card.apply_weak)); }
+
+        card_ui.spawn(TextBundle::from_section(
+            desc,
+            TextStyle {
+                font: Handle::default(),
+                font_size: 12.0,
+                color: Color::srgb(0.8, 0.8, 0.8),
+            },
+        ).with_style(Style {
+            margin: UiRect::top(Val::Px(5.0)),
+            ..default()
+        }));
+
+        extension(card_ui);
+
+        // Energy Glyph
+        card_ui.spawn(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                left: Val::Px(-5.0),
+                top: Val::Px(-5.0),
+                width: Val::Px(25.0),
+                height: Val::Px(25.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            background_color: Color::srgb(0.2, 0.7, 0.9).into(),
+            z_index: ZIndex::Local(10),
+            ..default()
+        }).with_children(|energy| {
+            energy.spawn(TextBundle::from_section(
+                card.cost.to_string(),
+                TextStyle {
+                    font: Handle::default(),
+                    font_size: 16.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
     });
 }
