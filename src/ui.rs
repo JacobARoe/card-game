@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::components::*;
 use crate::resources::*;
+use crate::item_relics::get_relic_visuals;
 
 pub fn update_health_ui(
     player_health_query: Query<&Health, (With<Player>, Changed<Health>)>,
@@ -83,10 +84,7 @@ pub fn update_relic_ui(
 ) {
     let spawn_relics = |parent: &mut ChildBuilder, relics: &RelicStore| {
         for relic in &relics.relics {
-            let (text, tooltip, color) = match relic {
-                Relic::Vajra => ("V", "Vajra: +1 Strength.", Color::srgb(0.8, 0.2, 0.2)),
-                Relic::BurningBlood => ("BB", "Burning Blood: Heal 6 HP at end of combat.", Color::srgb(0.6, 0.0, 0.0)),
-            };
+            let (text, tooltip, color) = get_relic_visuals(relic);
             
             parent.spawn((
                 NodeBundle {
@@ -105,6 +103,7 @@ pub fn update_relic_ui(
                     ..default()
                 },
                 Interaction::None,
+                RelicIcon { relic: *relic },
                 Tooltip { text: tooltip.to_string() },
             )).with_children(|p| {
                 p.spawn(TextBundle::from_section(text, TextStyle {

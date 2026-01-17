@@ -3,29 +3,36 @@ use bevy::prelude::*;
 mod components;
 mod resources;
 mod states;
-mod battle;
 mod common;
-mod map;
-mod rest;
-mod shop;
 mod ui;
-mod menu;
-mod deck_view;
-mod discard_view;
-mod event;
+mod scene_battle;
+mod scene_map;
+mod scene_rest;
+mod scene_shop;
+mod scene_menu;
+mod scene_deck;
+mod scene_discard;
+mod scene_event;
+mod item_cards;
+mod item_relics;
+mod item_potions;
+mod scene_rewards;
+mod scene_game_over;
 
 use components::*;
 use states::*;
-use battle::*;
 use common::*;
-use map::*;
-use rest::*;
-use shop::*;
 use ui::*;
-use menu::*;
-use deck_view::*;
-use discard_view::*;
-use event::*;
+use scene_battle::*;
+use scene_map::*;
+use scene_rest::*;
+use scene_shop::*;
+use scene_menu::*;
+use scene_deck::*;
+use scene_discard::*;
+use scene_event::*;
+use scene_rewards::*;
+use scene_game_over::*;
 
 fn main() {
     App::new()
@@ -51,6 +58,7 @@ fn main() {
                 update_potion_ui,
                 potion_interaction_system,
                 update_pile_ui,
+                update_particles_system,
                 update_damage_flash_system,
                 update_block_flash_system,
                 update_enemy_tooltip_system,

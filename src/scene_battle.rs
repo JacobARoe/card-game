@@ -5,7 +5,6 @@ use rand::Rng;
 use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
-use crate::common::*;
 use crate::item_cards::*;
 use crate::item_relics::Relic;
 use crate::item_potions::{Potion, get_potion_visuals};

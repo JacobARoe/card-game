@@ -5,9 +5,18 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::resources::*;
+use crate::item_relics::Relic;
+use crate::item_potions::Potion;
+
+#[derive(Component)]
+pub struct MainCamera;
 
 pub fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    // Standard 2D Camera for UI, Battle, etc.
+    commands.spawn((
+        Camera2dBundle::default(),
+        MainCamera,
+    ));
 }
 
 pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
@@ -24,7 +33,7 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         Block { value: 0 },
         StatusStore::default(),
         RelicStore { relics: vec![Relic::BurningBlood] },
-        PotionStore { potions: vec![PotionType::Health, PotionType::Strength] },
+        PotionStore { potions: vec![Potion::Health, Potion::Strength] },
         Gold { amount: 200 },
     ));
 
@@ -57,7 +66,6 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         start_nodes.push(MapNodeData { 
             node_type: NodeType::Battle, 
             next_indices: vec![],
-            y_jitter: rng.gen_range(-20.0..20.0),
         });
     }
     levels.push(start_nodes);
@@ -75,7 +83,6 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
             nodes.push(MapNodeData { 
                 node_type, 
                 next_indices: vec![],
-                y_jitter: rng.gen_range(-40.0..40.0),
             });
         }
         levels.push(nodes);
@@ -85,7 +92,6 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
     levels.push(vec![MapNodeData { 
         node_type: NodeType::Boss, 
         next_indices: vec![],
-        y_jitter: 0.0,
     }]);
 
     // Connect Levels
@@ -129,6 +135,7 @@ pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Playe
         visited_path: Vec::new(),
     });
     commands.insert_resource(RewardStore::default());
+    commands.insert_resource(ShopStore::default());
 }
 
 pub fn despawn_screen<T: Component>(

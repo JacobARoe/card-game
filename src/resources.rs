@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use crate::components::Card;
 use crate::components::NodeType;
+use crate::item_relics::Relic;
+use crate::item_potions::Potion;
 
 #[derive(Resource, Default)]
 pub struct Deck {
@@ -16,7 +18,6 @@ pub struct DiscardPile {
 pub struct MapNodeData {
     pub node_type: NodeType,
     pub next_indices: Vec<usize>,
-    pub y_jitter: f32,
 }
 
 #[derive(Resource, Default)]
@@ -31,4 +32,12 @@ pub struct RewardStore {
     pub generated: bool,
     pub gold_reward: Option<i32>,
     pub card_choices: Option<Vec<Card>>,
+}
+
+#[derive(Resource, Default)]
+pub struct ShopStore {
+    pub generated: bool,
+    pub cards: Vec<Option<(Card, i32)>>,
+    pub relics: Vec<Option<(Relic, i32)>>,
+    pub potions: Vec<Option<(Potion, i32)>>,
 }

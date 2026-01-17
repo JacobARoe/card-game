@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use crate::item_relics::Relic;
+use crate::item_potions::Potion;
 
 #[derive(Component)]
 pub struct Player;
@@ -45,12 +47,6 @@ pub struct Gold {
     pub amount: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Relic {
-    Vajra,
-    BurningBlood,
-}
-
 #[derive(Component, Default)]
 pub struct RelicStore {
     pub relics: Vec<Relic>,
@@ -78,9 +74,6 @@ pub struct ShopUI;
 
 #[derive(Component)]
 pub struct RestUI;
-
-#[derive(Component)]
-pub struct VictoryUI;
 
 #[derive(Component)]
 pub struct MapUI;
@@ -131,21 +124,20 @@ pub struct EndTurnButton;
 pub struct EnemyIntentText;
 
 #[derive(Component)]
-pub struct VisitRestButton;
-
-#[derive(Component)]
 pub struct LeaveShopButton;
 
 #[derive(Component)]
 pub struct BuyCardButton {
     pub card: Card,
     pub cost: i32,
+    pub index: usize,
 }
 
 #[derive(Component)]
 pub struct BuyRelicButton {
     pub relic: Relic,
     pub cost: i32,
+    pub index: usize,
 }
 
 #[derive(Component)]
@@ -251,16 +243,9 @@ pub struct CardChoiceButton {
 #[derive(Component)]
 pub struct SkipCardButton;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PotionType {
-    Health,
-    Strength,
-    Energy,
-}
-
 #[derive(Component, Default)]
 pub struct PotionStore {
-    pub potions: Vec<PotionType>,
+    pub potions: Vec<Potion>,
 }
 
 #[derive(Component)]
@@ -273,8 +258,9 @@ pub struct PotionContainer;
 
 #[derive(Component)]
 pub struct BuyPotionButton {
-    pub potion: PotionType,
+    pub potion: Potion,
     pub cost: i32,
+    pub index: usize,
 }
 
 #[derive(Component)]
@@ -283,4 +269,15 @@ pub struct EventUI;
 #[derive(Component)]
 pub struct EventOptionButton {
     pub effect_id: usize,
+}
+
+#[derive(Component)]
+pub struct Particle {
+    pub velocity: Vec2,
+    pub lifetime: Timer,
+}
+
+#[derive(Component)]
+pub struct RelicIcon {
+    pub relic: Relic,
 }
