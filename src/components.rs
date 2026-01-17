@@ -40,6 +40,7 @@ pub struct StatusStore {
     pub poison: i32,
     pub weak: i32,
     pub strength: i32,
+    pub stun: i32,
 }
 
 #[derive(Component)]
@@ -67,6 +68,7 @@ pub struct Card {
     pub cost: i32,
     pub apply_poison: i32,
     pub apply_weak: i32,
+    pub apply_stun: i32,
     pub upgraded: bool,
     pub rarity: Rarity,
 }
@@ -292,3 +294,14 @@ pub struct RelicIcon {
 
 #[derive(Component)]
 pub struct SceneBackground;
+
+#[derive(Component, Debug, Clone)]
+pub struct NextEnemyMove {
+    pub name: String,
+    pub damage: i32,
+    pub block: i32,
+    pub poison: i32,
+    pub weak: i32,
+    pub steal_gold: i32,
+    pub is_charging: bool,
+}

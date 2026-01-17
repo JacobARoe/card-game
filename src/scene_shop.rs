@@ -29,7 +29,9 @@ pub fn setup_shop_screen(
 
         // Generate Relic
         shop_store.relics.clear();
-        let relic = if rng.gen_bool(0.5) { Relic::Vajra } else { Relic::BurningBlood };
+        use rand::seq::SliceRandom;
+        let all_relics = vec![Relic::Vajra, Relic::BurningBlood, Relic::Anchor, Relic::OddlySmoothStone, Relic::BagOfMarbles];
+        let relic = *all_relics.choose(&mut rng).unwrap();
         let cost = rng.gen_range(100..150);
         shop_store.relics.push(Some((relic, cost)));
 

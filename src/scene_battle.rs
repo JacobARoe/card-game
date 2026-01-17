@@ -23,6 +23,9 @@ pub struct CardAnimating {
     pub card: Card,
 }
 
+#[derive(Component)]
+pub struct FirstTurn;
+
 pub fn setup_battle(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -31,6 +34,7 @@ pub fn setup_battle(
     deck: Res<Deck>,
     discard: Res<DiscardPile>,
     mut reward_store: ResMut<RewardStore>,
+    player_query: Query<&RelicStore, With<Player>>,
 ) {
     println!("Setting up battle...");
 
@@ -74,14 +78,27 @@ pub fn setup_battle(
         },
         BattleEntity,
         SceneBackground,
+        FirstTurn,
     ));
+
+    // Relic Logic: Bag of Marbles
+    let mut initial_weak = 0;
+    if let Ok(relics) = player_query.get_single() {
+        if relics.relics.contains(&Relic::BagOfMarbles) {
+            initial_weak = 1;
+            println!("Bag of Marbles applied 1 Weak!");
+        }
+    }
+
+    let initial_move = generate_enemy_move(enemy_kind, false);
 
     // Spawn Enemy with Visuals
     commands.spawn((
         Enemy { kind: enemy_kind },
         Health { current: hp, max: hp },
         Block { value: 0 },
-        StatusStore::default(),
+        StatusStore { weak: initial_weak, ..default() },
+        initial_move,
         BattleEntity,
         Interaction::None,
         Tooltip { text: String::new() },
@@ -414,14 +431,24 @@ pub fn draw_cards_system(
     mut deck: ResMut<Deck>,
     mut discard: ResMut<DiscardPile>,
     hand_container_query: Query<Entity, With<HandContainer>>,
-    mut player_query: Query<(&mut Energy, &mut Block, &mut Health, &mut StatusStore), With<Player>>,
+    mut player_query: Query<(&mut Energy, &mut Block, &mut Health, &mut StatusStore, &RelicStore), With<Player>>,
     mut flash_query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
+    first_turn_query: Query<Entity, With<FirstTurn>>,
 ) {
-    if let Ok((mut energy, mut block, mut health, mut status)) = player_query.get_single_mut() {
+    if let Ok((mut energy, mut block, mut health, mut status, relics)) = player_query.get_single_mut() {
         // Reset Energy
         energy.current = energy.max;
-        // Reset Block
-        block.value = 0;
+        
+        // Reset Block (unless Anchor on first turn)
+        if let Ok(entity) = first_turn_query.get_single() {
+            commands.entity(entity).remove::<FirstTurn>();
+            if relics.relics.contains(&Relic::Anchor) {
+                block.value += 10;
+                println!("Anchor: +10 Block");
+            }
+        } else {
+            block.value = 0;
+        }
         
         // Poison Logic (Start of Turn)
         if status.poison > 0 {
@@ -519,6 +546,11 @@ pub fn update_enemy_tooltip_system(
     mut query: Query<(&Enemy, &StatusStore, &mut Tooltip), Or<(Added<Enemy>, Changed<StatusStore>)>>,
 ) {
     for (enemy, status, mut tooltip) in query.iter_mut() {
+        if status.stun > 0 {
+            tooltip.text = "Intent: Stunned\nCannot attack this turn.".to_string();
+            continue;
+        }
+
         let (base_damage, move_name) = match enemy.kind {
             EnemyKind::Goblin => (5, "Stabs"),
             EnemyKind::Orc => (12, "Smashes"),
@@ -612,17 +644,21 @@ pub fn play_card_system(
             let card_data = &anim.card;
             println!("Player plays: {}", card_data.name);
 
+            let (_, player_status, player_relics, mut player_health) = if let Ok(p) = player_query.get_single_mut() { p } else { continue };
+
             if card_data.block > 0 {
                 if let Ok(mut block) = player_block_query.get_single_mut() {
-                    block.value += card_data.block;
-                    println!("Player gains {} block", card_data.block);
+                    let mut block_gain = card_data.block;
+                    if player_relics.relics.contains(&Relic::OddlySmoothStone) {
+                        block_gain += 1;
+                    }
+                    block.value += block_gain;
+                    println!("Player gains {} block", block_gain);
                     for mut bg in &mut block_flash_query {
                         bg.0 = Color::srgba(0.0, 0.5, 1.0, 0.3).into();
                     }
                 }
             }
-
-            let (_, player_status, player_relics, mut player_health) = if let Ok(p) = player_query.get_single_mut() { p } else { continue };
 
             // Spawn Particles
             let pos = anim.target;
@@ -658,6 +694,7 @@ pub fn play_card_system(
             for (mut enemy_health, mut enemy_block, mut enemy_status, _) in enemy_query.iter_mut() {
                 if card_data.apply_poison > 0 { enemy_status.poison += card_data.apply_poison; }
                 if card_data.apply_weak > 0 { enemy_status.weak += card_data.apply_weak; }
+                if card_data.apply_stun > 0 { enemy_status.stun += card_data.apply_stun; }
 
                 let mut damage = card_data.damage;
                 if player_relics.relics.contains(&Relic::Vajra) && damage > 0 {
@@ -871,22 +908,22 @@ pub fn enemy_turn_system(
     mut commands: Commands,
     mut next_turn_state: ResMut<NextState<TurnState>>,
     mut next_game_state: ResMut<NextState<GameState>>,
-    mut player_query: Query<(&mut Health, &mut Block, &RelicStore), With<Player>>,
-    mut enemy_query: Query<(&Enemy, &mut Block, &mut Health, &mut StatusStore), Without<Player>>,
+    mut player_query: Query<(&mut Health, &mut Block, &RelicStore, &mut Gold, &mut StatusStore), With<Player>>,
+    mut enemy_query: Query<(&Enemy, &mut Block, &mut Health, &mut StatusStore, &mut NextEnemyMove), Without<Player>>,
     mut intent_text_query: Query<&mut Text, With<EnemyIntentText>>,
     mut flash_query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
     window_query: Query<&Window>,
     mut game_map: ResMut<GameMap>,
 ) {
-    let (enemy, mut enemy_block, mut enemy_health, mut enemy_status) = enemy_query.single_mut();
+    let (enemy, mut enemy_block, mut enemy_health, mut enemy_status, mut next_move) = enemy_query.single_mut();
     
     if enemy_status.poison > 0 {
         enemy_health.current -= enemy_status.poison;
         enemy_status.poison -= 1;
     }
     if enemy_health.current <= 0 {
-        if let Ok((mut p_health, _, p_relics)) = player_query.get_single_mut() {
+        if let Ok((mut p_health, _, p_relics, _, _)) = player_query.get_single_mut() {
             if p_relics.relics.contains(&Relic::BurningBlood) {
                 p_health.current = (p_health.current + 6).min(p_health.max);
                 println!("Burning Blood heals 6 HP!");
@@ -956,6 +993,19 @@ pub fn enemy_turn_system(
     
     enemy_block.value = 0;
 
+    if enemy_status.stun > 0 {
+        println!("Enemy is stunned!");
+        enemy_status.stun -= 1;
+        
+        for mut text in &mut intent_text_query {
+            text.sections[0].value = "Stunned!".to_string();
+        }
+
+        next_turn_state.set(TurnState::PlayerTurnStart);
+        println!("Player's turn.");
+        return;
+    }
+
     let (damage, action_desc) = match enemy.kind {
         EnemyKind::Goblin => (5, "Stabs"),
         EnemyKind::Orc => (12, "Smashes"),
@@ -975,7 +1025,7 @@ pub fn enemy_turn_system(
         text.sections[0].value = format!("{}! ({} dmg)", action_desc, final_damage);
     }
 
-    for (mut player_health, mut player_block, _) in player_query.iter_mut() {
+    for (mut player_health, mut player_block, _, mut player_gold, mut player_status) in player_query.iter_mut() {
         let block_damage = std::cmp::min(final_damage, player_block.value);
         let actual_damage = final_damage - block_damage;
         player_block.value -= block_damage;
@@ -986,14 +1036,81 @@ pub fn enemy_turn_system(
                 bg.0 = Color::srgba(1.0, 0.0, 0.0, 0.5).into();
             }
         }
+
+        if next_move.poison > 0 { player_status.poison += next_move.poison; }
+        if next_move.weak > 0 { player_status.weak += next_move.weak; }
+        if next_move.steal_gold > 0 {
+            let stolen = std::cmp::min(player_gold.amount, next_move.steal_gold);
+            player_gold.amount -= stolen;
+            println!("Enemy stole {} gold!", stolen);
+        }
+
         if player_health.current <= 0 {
             next_game_state.set(GameState::GameOver);
             return;
         }
     }
 
+    // Generate Next Move
+    *next_move = generate_enemy_move(enemy.kind, next_move.is_charging);
+
     next_turn_state.set(TurnState::PlayerTurnStart);
     println!("Player's turn.");
+}
+
+// Helper to generate moves
+fn generate_enemy_move(kind: EnemyKind, prev_was_charging: bool) -> NextEnemyMove {
+    if prev_was_charging {
+        return NextEnemyMove {
+            name: "Fire Breath".to_string(),
+            damage: 50,
+            block: 0,
+            poison: 0,
+            weak: 0,
+            steal_gold: 0,
+            is_charging: false,
+        };
+    }
+
+    let mut rng = thread_rng();
+    let roll = rng.gen_range(0..100);
+
+    match kind {
+        EnemyKind::Goblin => {
+            if roll < 60 {
+                NextEnemyMove { name: "Stabs".to_string(), damage: 5, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else {
+                NextEnemyMove { name: "Thieve".to_string(), damage: 3, block: 0, poison: 0, weak: 0, steal_gold: 10, is_charging: false }
+            }
+        },
+        EnemyKind::Orc => {
+            if roll < 50 {
+                NextEnemyMove { name: "Smashes".to_string(), damage: 12, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else if roll < 80 {
+                NextEnemyMove { name: "Heavy Blow".to_string(), damage: 18, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else {
+                NextEnemyMove { name: "Defends".to_string(), damage: 0, block: 15, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            }
+        },
+        EnemyKind::DarkKnight => {
+            if roll < 40 {
+                NextEnemyMove { name: "Executes".to_string(), damage: 18, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else if roll < 70 {
+                NextEnemyMove { name: "Obliterates".to_string(), damage: 25, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else {
+                NextEnemyMove { name: "Dark Magic".to_string(), damage: 10, block: 0, poison: 3, weak: 0, steal_gold: 0, is_charging: false }
+            }
+        },
+        EnemyKind::Dragon => {
+            if roll < 40 {
+                NextEnemyMove { name: "Incinerates".to_string(), damage: 25, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: false }
+            } else if roll < 70 {
+                NextEnemyMove { name: "Roar".to_string(), damage: 15, block: 0, poison: 0, weak: 2, steal_gold: 0, is_charging: false }
+            } else {
+                NextEnemyMove { name: "Deep Breath".to_string(), damage: 0, block: 0, poison: 0, weak: 0, steal_gold: 0, is_charging: true }
+            }
+        },
+    }
 }
 
 pub fn update_damage_flash_system(
@@ -1076,6 +1193,29 @@ pub fn update_status_visuals_system(
                 Tooltip { text: "Weak: Deal 25% less damage.".to_string() },
             )).with_children(|p| {
                 p.spawn(TextBundle::from_section(format!("Wk {}", status.weak), TextStyle {
+                    font_size: 16.0,
+                    color: Color::WHITE,
+                    font: Handle::default(),
+                }));
+            });
+        }
+        if status.stun > 0 {
+            parent.spawn((
+                NodeBundle {
+                    style: Style {
+                        margin: UiRect::right(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(3.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    background_color: Color::srgba(0.8, 0.8, 0.2, 0.5).into(),
+                    border_color: Color::srgb(1.0, 1.0, 0.2).into(),
+                    ..default()
+                },
+                Interaction::None,
+                Tooltip { text: "Stunned: Cannot act this turn.".to_string() },
+            )).with_children(|p| {
+                p.spawn(TextBundle::from_section("Stunned", TextStyle {
                     font_size: 16.0,
                     color: Color::WHITE,
                     font: Handle::default(),

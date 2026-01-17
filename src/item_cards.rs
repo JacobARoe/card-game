@@ -5,6 +5,8 @@ use rand::{thread_rng, Rng};
 pub fn get_card_visuals(card: &Card) -> (Color, Color) {
     let bg_color = if card.apply_poison > 0 || card.apply_weak > 0 {
         Color::srgb(0.2, 0.0, 0.3) // Purple theme (Status)
+    } else if card.apply_stun > 0 {
+        Color::srgb(0.4, 0.4, 0.0) // Yellow/Gold theme (Stun)
     } else if card.damage > 0 {
         Color::srgb(0.3, 0.1, 0.1) // Red theme (Attack)
     } else if card.block > 0 {
@@ -23,51 +25,59 @@ pub fn get_card_visuals(card: &Card) -> (Color, Color) {
 }
 
 pub fn strike() -> Card {
-    Card { name: "Strike".to_string(), damage: 7, block: 0, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Strike".to_string(), damage: 7, block: 0, cost: 1, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn defend() -> Card {
-    Card { name: "Defend".to_string(), damage: 0, block: 8, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Defend".to_string(), damage: 0, block: 8, cost: 1, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn bash() -> Card {
-    Card { name: "Bash".to_string(), damage: 12, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Bash".to_string(), damage: 12, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn iron_wave() -> Card {
-    Card { name: "Iron Wave".to_string(), damage: 5, block: 5, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Iron Wave".to_string(), damage: 5, block: 5, cost: 1, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn deadly_poison() -> Card {
-    Card { name: "Deadly Poison".to_string(), damage: 0, block: 0, cost: 1, apply_poison: 10, apply_weak: 0, upgraded: false, rarity: Rarity::Rare }
+    Card { name: "Deadly Poison".to_string(), damage: 0, block: 0, cost: 1, apply_poison: 10, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Rare }
 }
 
 pub fn heavy_blade() -> Card {
-    Card { name: "Heavy Blade".to_string(), damage: 16, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Legendary }
+    Card { name: "Heavy Blade".to_string(), damage: 16, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Legendary }
 }
 
 pub fn shrug_it_off() -> Card {
-    Card { name: "Shrug It Off".to_string(), damage: 0, block: 8, cost: 1, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Shrug It Off".to_string(), damage: 0, block: 8, cost: 1, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn clothesline() -> Card {
-    Card { name: "Clothesline".to_string(), damage: 12, block: 0, cost: 2, apply_poison: 0, apply_weak: 2, upgraded: false, rarity: Rarity::Rare }
+    Card { name: "Clothesline".to_string(), damage: 12, block: 0, cost: 2, apply_poison: 0, apply_weak: 2, apply_stun: 0, upgraded: false, rarity: Rarity::Rare }
 }
 
 pub fn quick_slash() -> Card {
-    Card { name: "Quick Slash".to_string(), damage: 4, block: 0, cost: 0, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Common }
+    Card { name: "Quick Slash".to_string(), damage: 4, block: 0, cost: 0, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Common }
 }
 
 pub fn bludgeon() -> Card {
-    Card { name: "Bludgeon".to_string(), damage: 30, block: 0, cost: 3, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Legendary }
+    Card { name: "Bludgeon".to_string(), damage: 30, block: 0, cost: 3, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Legendary }
 }
 
 pub fn poison_cloud() -> Card {
-    Card { name: "Poison Cloud".to_string(), damage: 0, block: 0, cost: 2, apply_poison: 5, apply_weak: 3, upgraded: false, rarity: Rarity::Rare }
+    Card { name: "Poison Cloud".to_string(), damage: 0, block: 0, cost: 2, apply_poison: 5, apply_weak: 3, apply_stun: 0, upgraded: false, rarity: Rarity::Rare }
 }
 
 pub fn fortify() -> Card {
-    Card { name: "Fortify".to_string(), damage: 0, block: 20, cost: 2, apply_poison: 0, apply_weak: 0, upgraded: false, rarity: Rarity::Rare }
+    Card { name: "Fortify".to_string(), damage: 0, block: 20, cost: 2, apply_poison: 0, apply_weak: 0, apply_stun: 0, upgraded: false, rarity: Rarity::Rare }
+}
+
+pub fn uppercut() -> Card {
+    Card { name: "Uppercut".to_string(), damage: 8, block: 0, cost: 2, apply_poison: 0, apply_weak: 0, apply_stun: 1, upgraded: false, rarity: Rarity::Rare }
+}
+
+pub fn flashbang() -> Card {
+    Card { name: "Flashbang".to_string(), damage: 0, block: 0, cost: 1, apply_poison: 0, apply_weak: 2, apply_stun: 1, upgraded: false, rarity: Rarity::Rare }
 }
 
 pub fn generate_random_card() -> Card {
@@ -84,12 +94,14 @@ pub fn generate_random_card() -> Card {
         }
     } else if roll < 90 {
         // Rare (30%)
-        let r = rng.gen_range(0..4);
+        let r = rng.gen_range(0..6);
         match r {
             0 => deadly_poison(),
             1 => clothesline(),
             2 => poison_cloud(),
-            _ => fortify(),
+            3 => fortify(),
+            4 => uppercut(),
+            _ => flashbang(),
         }
     } else {
         // Legendary (10%)

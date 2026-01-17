@@ -258,6 +258,7 @@ pub fn spawn_card_visual(
         if card.block > 0 { desc.push_str(&format!("Gain {} Blk\n", card.block)); }
         if card.apply_poison > 0 { desc.push_str(&format!("Apply {} Psn\n", card.apply_poison)); }
         if card.apply_weak > 0 { desc.push_str(&format!("Apply {} Wk\n", card.apply_weak)); }
+        if card.apply_stun > 0 { desc.push_str("Stun Enemy\n"); }
 
         card_ui.spawn(TextBundle::from_section(
             desc,
