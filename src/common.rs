@@ -196,6 +196,8 @@ pub fn spawn_card_visual(
     extra_bundle: impl Bundle,
     extension: impl FnOnce(&mut ChildBuilder),
 ) {
+    let (bg_color, border_color) = item_cards::get_card_visuals(card);
+
     parent.spawn((
         NodeBundle {
         style: Style {
@@ -207,26 +209,34 @@ pub fn spawn_card_visual(
             margin: UiRect::all(Val::Px(5.0)),
             ..default()
         },
-        background_color: Color::srgb(0.15, 0.15, 0.2).into(),
-        border_color: if format!("{:?}", card.rarity).contains("Legendary") {
-            Color::srgb(1.0, 0.8, 0.2).into()
-        } else {
-            Color::srgb(0.5, 0.5, 0.5).into()
-        },
+        background_color: bg_color.into(),
+        border_color: border_color.into(),
         ..default()
         },
         extra_bundle,
     )).with_children(|card_ui| {
         // Card Image
-        card_ui.spawn(ImageBundle {
+        card_ui.spawn(NodeBundle {
             style: Style {
                 width: Val::Px(100.0),
                 height: Val::Px(80.0),
                 margin: UiRect::top(Val::Px(10.0)),
+                overflow: bevy::ui::Overflow::clip(),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 ..default()
             },
-            image: asset_server.load(format!("images/cards/{}.jpg", card.name.trim_end_matches('+'))).into(),
             ..default()
+            }).with_children(|parent| {
+                parent.spawn(ImageBundle {
+                style: Style {
+                    width: Val::Percent(200.0),
+                    height: Val::Auto,
+                    ..default()
+                },
+                image: asset_server.load(format!("images/cards/{}.jpg", card.name.trim_end_matches('+'))).into(),
+                ..default()
+            });
         });
 
         // Card Name
@@ -289,4 +299,22 @@ pub fn spawn_card_visual(
             ));
         });
     });
+}
+
+pub fn resize_background_system(
+    window_query: Query<&Window>,
+    mut bg_query: Query<(&mut Transform, &Handle<Image>), With<SceneBackground>>,
+    images: Res<Assets<Image>>,
+) {
+    let window = window_query.single();
+    for (mut transform, image_handle) in &mut bg_query {
+        if let Some(image) = images.get(image_handle) {
+            let win_w = window.width();
+            let win_h = window.height();
+            let img_w = image.size().x as f32;
+            let img_h = image.size().y as f32;
+            let scale = (win_w / img_w).max(win_h / img_h);
+            transform.scale = Vec3::splat(scale);
+        }
+    }
 }

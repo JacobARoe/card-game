@@ -47,6 +47,16 @@ pub fn setup_shop_screen(
     }
 
     commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("images/backgrounds/RoadsideShop.jpg"),
+            transform: Transform::from_xyz(0.0, 0.0, -100.0),
+            ..default()
+        },
+        ShopUI,
+        SceneBackground,
+    ));
+
+    commands.spawn((
         NodeBundle {
             style: Style {
                 width: Val::Percent(100.0),
@@ -56,7 +66,7 @@ pub fn setup_shop_screen(
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
-            background_color: Color::srgb(0.1, 0.1, 0.2).into(),
+            background_color: Color::srgba(0.1, 0.1, 0.2, 0.7).into(),
             ..default()
         },
         ShopUI,

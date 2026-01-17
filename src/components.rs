@@ -289,3 +289,6 @@ pub struct Particle {
 pub struct RelicIcon {
     pub relic: Relic,
 }
+
+#[derive(Component)]
+pub struct SceneBackground;

@@ -64,6 +64,7 @@ fn main() {
                 update_enemy_tooltip_system,
                 end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
                 discard_pile_click_system.run_if(in_state(TurnState::PlayerTurn)),
+                resize_background_system,
             ).run_if(in_state(GameState::Battle))
         )
         .add_systems(OnEnter(TurnState::PlayerTurnStart), draw_cards_system)
@@ -79,13 +80,13 @@ fn main() {
         .add_systems(Update, (map_interaction_system, tooltip_system).run_if(in_state(GameState::Map)))
         .add_systems(OnExit(GameState::Map), (despawn_screen::<MapUI>, despawn_screen::<TooltipUi>))
         .add_systems(OnEnter(GameState::Shop), setup_shop_screen)
-        .add_systems(Update, (shop_interaction_system, shop_nav_system, update_shop_gold_ui).run_if(in_state(GameState::Shop)))
+        .add_systems(Update, (shop_interaction_system, shop_nav_system, update_shop_gold_ui, resize_background_system).run_if(in_state(GameState::Shop)))
         .add_systems(OnExit(GameState::Shop), despawn_screen::<ShopUI>)
         .add_systems(OnEnter(GameState::ShopRemoveCard), setup_shop_remove_screen)
         .add_systems(Update, shop_remove_system.run_if(in_state(GameState::ShopRemoveCard)))
         .add_systems(OnExit(GameState::ShopRemoveCard), despawn_screen::<ShopRemoveUI>)
         .add_systems(OnEnter(GameState::Rest), setup_rest_screen)
-        .add_systems(Update, rest_interaction_system.run_if(in_state(GameState::Rest)))
+        .add_systems(Update, (rest_interaction_system, resize_background_system).run_if(in_state(GameState::Rest)))
         .add_systems(OnExit(GameState::Rest), despawn_screen::<RestUI>)
         .add_systems(OnEnter(GameState::GameOver), setup_game_over_screen)
         .add_systems(Update, game_over_interaction_system.run_if(in_state(GameState::GameOver)))

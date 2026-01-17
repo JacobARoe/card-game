@@ -6,9 +6,19 @@ use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
 
-pub fn setup_rest_screen(mut commands: Commands, player_query: Query<&Health, With<Player>>) {
+pub fn setup_rest_screen(mut commands: Commands, asset_server: Res<AssetServer>, player_query: Query<&Health, With<Player>>) {
     let health = player_query.single();
     
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("images/backgrounds/Campsite.jpg"),
+            transform: Transform::from_xyz(0.0, 0.0, -100.0),
+            ..default()
+        },
+        RestUI,
+        SceneBackground,
+    ));
+
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -19,7 +29,7 @@ pub fn setup_rest_screen(mut commands: Commands, player_query: Query<&Health, Wi
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
-            background_color: Color::srgb(0.1, 0.1, 0.1).into(),
+            background_color: Color::srgba(0.1, 0.1, 0.1, 0.7).into(),
             ..default()
         },
         RestUI,

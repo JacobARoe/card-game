@@ -25,6 +25,7 @@ pub struct CardAnimating {
 
 pub fn setup_battle(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut next_turn_state: ResMut<NextState<TurnState>>,
     game_map: Res<GameMap>,
     deck: Res<Deck>,
@@ -50,12 +51,30 @@ pub fn setup_battle(
             if rng.gen_bool(0.9) { EnemyKind::Goblin } else { EnemyKind::Orc }
         }
     };
-    let (hp, name, color) = match enemy_kind {
-        EnemyKind::Goblin => (20, "Goblin", Color::srgb(0.2, 0.8, 0.2)),
-        EnemyKind::Orc => (40, "Orc", Color::srgb(0.8, 0.2, 0.2)),
-        EnemyKind::Dragon => (150, "Dragon", Color::srgb(0.6, 0.1, 0.8)),
-        EnemyKind::DarkKnight => (80, "Dark Knight", Color::srgb(0.1, 0.1, 0.3)),
+    let (hp, name, enemy_sprite) = match enemy_kind {
+        EnemyKind::Goblin => (20, "Goblin", "images/enemies/Goblin.png"),
+        EnemyKind::Orc => (40, "Orc", "images/enemies/Orc.png"),
+        EnemyKind::Dragon => (150, "Dragon", "images/enemies/Dragon.png"),
+        EnemyKind::DarkKnight => (80, "Dark Knight", "images/enemies/DarkKnight.png"),
     };
+
+    // Spawn Background
+    let bg_image = match enemy_kind {
+        EnemyKind::Dragon => "images/backgrounds/DragonLayer.jpg",
+        EnemyKind::Goblin => "images/backgrounds/PoisonCave.jpg",
+        EnemyKind::Orc => "images/backgrounds/RuinedForest.jpg",
+        _ => "images/backgrounds/Battlefield.jpg",
+    };
+
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load(bg_image),
+            transform: Transform::from_xyz(0.0, 0.0, -100.0),
+            ..default()
+        },
+        BattleEntity,
+        SceneBackground,
+    ));
 
     // Spawn Enemy with Visuals
     commands.spawn((
@@ -71,19 +90,25 @@ pub fn setup_battle(
                 position_type: PositionType::Absolute,
                 top: Val::Px(50.0),
                 right: Val::Px(50.0),
-                width: Val::Px(150.0),
-                height: Val::Px(150.0),
-                justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
-                border: UiRect::all(Val::Px(4.0)),
                 ..default()
             },
-            background_color: color.into(),
-            border_color: Color::WHITE.into(),
+            background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
             ..default()
         }
     )).with_children(|parent| {
+        parent.spawn(ImageBundle {
+            style: Style {
+                width: Val::Px(400.0),
+                height: Val::Px(400.0),
+                margin: UiRect::bottom(Val::Px(10.0)),
+                ..default()
+            },
+            image: asset_server.load(enemy_sprite).into(),
+            ..default()
+        });
+
         parent.spawn(TextBundle::from_section(name, TextStyle {
             font: Handle::default(),
             font_size: 30.0,
@@ -238,7 +263,7 @@ pub fn setup_battle(
         NodeBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                right: Val::Px(220.0),
+                right: Val::Px(360.0),
                 top: Val::Px(50.0),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::FlexEnd,
