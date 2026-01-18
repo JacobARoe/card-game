@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::components::Card;
+use crate::components::CharacterClass;
 use crate::components::NodeType;
 use crate::item_relics::Relic;
 use crate::item_potions::Potion;
@@ -41,4 +42,9 @@ pub struct ShopStore {
     pub cards: Vec<Option<(Card, i32)>>,
     pub relics: Vec<Option<(Relic, i32)>>,
     pub potions: Vec<Option<(Potion, i32)>>,
+}
+
+#[derive(Resource, Default)]
+pub struct RunState {
+    pub character_class: CharacterClass,
 }

@@ -56,6 +56,11 @@ pub fn enemy_turn_system(
         enemy_health.current -= enemy_status.poison;
         enemy_status.poison -= 1;
     }
+    if enemy_status.burning > 0 {
+        enemy_health.current -= enemy_status.burning;
+        println!("Enemy takes {} burning damage!", enemy_status.burning);
+        enemy_status.burning -= 1;
+    }
     if enemy_health.current <= 0 {
         commands.entity(enemy_entity).despawn_recursive();
         living_enemies -= 1;
@@ -161,6 +166,11 @@ pub fn enemy_turn_system(
     }
 
     println!("Enemy {}!", next_move.name);
+
+    if enemy_status.frozen > 0 && final_damage > 0 {
+        final_damage = (final_damage as f32 * 0.75) as i32; // Frozen acts like Weak
+        println!("Frozen reduces damage!");
+    }
     
     for (parent, mut text) in &mut intent_text_query {
         if parent.get() == enemy_entity {
@@ -202,6 +212,10 @@ pub fn enemy_turn_system(
 
     // Generate Next Move
     *next_move = generate_enemy_move(enemy.kind, next_move.is_charging);
+
+    if enemy_status.frozen > 0 {
+        enemy_status.frozen -= 1;
+    }
     }
 
     next_turn_state.set(TurnState::PlayerTurnStart);

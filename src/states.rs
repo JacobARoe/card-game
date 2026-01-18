@@ -14,6 +14,8 @@ pub enum GameState {
     ShopRemoveCard,
     RewardSelectCard,
     Event,
+    CharacterSelect,
+    BonusSelect,
 }
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
