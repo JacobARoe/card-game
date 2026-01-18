@@ -40,20 +40,27 @@ pub fn enemy_turn_system(
     mut next_turn_state: ResMut<NextState<TurnState>>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut player_query: Query<(&mut Health, &mut Block, &RelicStore, &mut Gold, &mut StatusStore), With<Player>>,
-    mut enemy_query: Query<(&Enemy, &mut Block, &mut Health, &mut StatusStore, &mut NextEnemyMove), Without<Player>>,
-    mut intent_text_query: Query<&mut Text, With<EnemyIntentText>>,
+    mut enemy_query: Query<(Entity, &Enemy, &mut Block, &mut Health, &mut StatusStore, &mut NextEnemyMove), Without<Player>>,
+    mut intent_text_query: Query<(&Parent, &mut Text), With<EnemyIntentText>>,
     mut flash_query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
     window_query: Query<&Window>,
     mut game_map: ResMut<GameMap>,
 ) {
-    let (enemy, mut enemy_block, mut enemy_health, mut enemy_status, mut next_move) = enemy_query.single_mut();
+    // Count living enemies before iterating mutably
+    let mut living_enemies = enemy_query.iter().filter(|(_, _, _, h, _, _)| h.current > 0).count();
+
+    for (enemy_entity, enemy, mut enemy_block, mut enemy_health, mut enemy_status, mut next_move) in enemy_query.iter_mut() {
     
     if enemy_status.poison > 0 {
         enemy_health.current -= enemy_status.poison;
         enemy_status.poison -= 1;
     }
     if enemy_health.current <= 0 {
+        commands.entity(enemy_entity).despawn_recursive();
+        living_enemies -= 1;
+
+        if living_enemies == 0 {
         if let Ok((mut p_health, _, p_relics, _, _)) = player_query.get_single_mut() {
             if p_relics.relics.contains(&Relic::BurningBlood) {
                 p_health.current = (p_health.current + 6).min(p_health.max);
@@ -102,24 +109,33 @@ pub fn enemy_turn_system(
         }
         // Reveal next nodes on map
         if let Some((level, index)) = game_map.current_node {
-            game_map.visited_path.push((level, index));
-            let visited = game_map.visited_path.clone();
+            // Split borrow of game_map to allow accessing fields independently
+            let map = &mut *game_map;
+            
+            if !map.visited_path.contains(&(level, index)) { map.visited_path.push((level, index)); }
+            
+            let visited = &map.visited_path;
+            let levels = &mut map.levels;
+            
             for l in 0..=level {
-                for (i, node) in game_map.levels[l].iter_mut().enumerate() {
+                for (i, node) in levels[l].iter_mut().enumerate() {
                     if !visited.contains(&(l, i)) {
                         node.visible = false;
                     }
                 }
             }
-            if level + 1 < game_map.levels.len() {
-                let next_indices = game_map.levels[level][index].next_indices.clone();
+            if level + 1 < levels.len() {
+                let next_indices = levels[level][index].next_indices.clone();
                 for next_idx in next_indices {
-                    game_map.levels[level + 1][next_idx].visible = true;
+                    levels[level + 1][next_idx].visible = true;
                 }
             }
         }
-        next_game_state.set(GameState::Victory);
-        return;
+        
+            next_game_state.set(GameState::Victory);
+            return;
+        }
+        continue; // This enemy is dead, skip action
     }
     
     enemy_block.value = 0;
@@ -128,13 +144,14 @@ pub fn enemy_turn_system(
         println!("Enemy is stunned!");
         enemy_status.stun -= 1;
         
-        for mut text in &mut intent_text_query {
-            text.sections[0].value = "Stunned!".to_string();
+        for (parent, mut text) in &mut intent_text_query {
+            if parent.get() == enemy_entity {
+                text.sections[0].value = "Stunned!".to_string();
+            }
         }
 
-        next_turn_state.set(TurnState::PlayerTurnStart);
-        println!("Player's turn.");
-        return;
+        // Continue to next enemy
+        continue;
     }
 
     let mut final_damage = next_move.damage;
@@ -145,8 +162,10 @@ pub fn enemy_turn_system(
 
     println!("Enemy {}!", next_move.name);
     
-    for mut text in &mut intent_text_query {
-        text.sections[0].value = format!("{}! ({} dmg)", next_move.name, final_damage);
+    for (parent, mut text) in &mut intent_text_query {
+        if parent.get() == enemy_entity {
+            text.sections[0].value = format!("{}! ({} dmg)", next_move.name, final_damage);
+        }
     }
 
     // Apply Enemy Block
@@ -183,6 +202,7 @@ pub fn enemy_turn_system(
 
     // Generate Next Move
     *next_move = generate_enemy_move(enemy.kind, next_move.is_charging);
+    }
 
     next_turn_state.set(TurnState::PlayerTurnStart);
     println!("Player's turn.");

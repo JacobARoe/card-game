@@ -5,16 +5,18 @@ use crate::item_relics::get_relic_visuals;
 
 pub fn update_health_ui(
     player_health_query: Query<&Health, (With<Player>, Changed<Health>)>,
-    enemy_health_query: Query<&Health, (With<Enemy>, Changed<Health>)>,
     player_block_query: Query<&Block, (With<Player>, Changed<Block>)>,
-    enemy_block_query: Query<&Block, (With<Enemy>, Changed<Block>)>,
     player_gold_query: Query<&Gold, (With<Player>, Changed<Gold>)>,
+
+    parents: Query<&Parent>,
+    enemy_data: Query<(&Health, &Block), With<Enemy>>,
+
     mut text_queries: ParamSet<(
         Query<&mut Text, With<PlayerHealthText>>,
-        Query<&mut Text, With<EnemyHealthText>>,
         Query<&mut Text, With<PlayerBlockText>>,
-        Query<&mut Text, With<EnemyBlockText>>,
         Query<&mut Text, With<PlayerGoldText>>,
+        Query<(&Parent, &mut Text), With<EnemyHealthText>>,
+        Query<(&Parent, &mut Text), With<EnemyBlockText>>,
     )>,
 ) {
     if let Ok(health) = player_health_query.get_single() {
@@ -22,24 +24,39 @@ pub fn update_health_ui(
             text.sections[0].value = format!("Player: {}/{}", health.current, health.max);
         }
     }
-    if let Ok(health) = enemy_health_query.get_single() {
-        for mut text in text_queries.p1().iter_mut() {
-            text.sections[0].value = format!("Enemy: {}/{}", health.current, health.max);
-        }
-    }
     if let Ok(block) = player_block_query.get_single() {
-        for mut text in text_queries.p2().iter_mut() {
-            text.sections[0].value = format!("Block: {}", block.value);
-        }
-    }
-    if let Ok(block) = enemy_block_query.get_single() {
-        for mut text in text_queries.p3().iter_mut() {
+        for mut text in text_queries.p1().iter_mut() {
             text.sections[0].value = format!("Block: {}", block.value);
         }
     }
     if let Ok(gold) = player_gold_query.get_single() {
-        for mut text in text_queries.p4().iter_mut() {
+        for mut text in text_queries.p2().iter_mut() {
             text.sections[0].value = format!("Gold: {}", gold.amount);
+        }
+    }
+
+    // Update Enemy Health UI
+    for (parent, mut text) in text_queries.p3().iter_mut() {
+        // Hierarchy: Text -> Row -> Enemy
+        if let Ok(grandparent) = parents.get(parent.get()) {
+            if let Ok((health, _)) = enemy_data.get(grandparent.get()) {
+                let new_text = format!("HP: {}/{}", health.current, health.max);
+                if text.sections[0].value != new_text {
+                    text.sections[0].value = new_text;
+                }
+            }
+        }
+    }
+
+    // Update Enemy Block UI
+    for (parent, mut text) in text_queries.p4().iter_mut() {
+        if let Ok(grandparent) = parents.get(parent.get()) {
+            if let Ok((_, block)) = enemy_data.get(grandparent.get()) {
+                let new_text = format!("Block: {}", block.value);
+                if text.sections[0].value != new_text {
+                    text.sections[0].value = new_text;
+                }
+            }
         }
     }
 }

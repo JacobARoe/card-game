@@ -41,28 +41,40 @@ pub fn setup_battle(
     };
 
     let mut rng = thread_rng();
-    let enemy_kind = match node_type {
-        NodeType::Boss => EnemyKind::Dragon,
-        NodeType::Elite => EnemyKind::DarkKnight,
+    let mut enemies_to_spawn = Vec::new();
+
+    match node_type {
+        NodeType::Boss => enemies_to_spawn.push(EnemyKind::Dragon),
+        NodeType::Elite => enemies_to_spawn.push(EnemyKind::DarkKnight),
         _ => if level >= 3 {
-            if rng.gen_bool(0.7) { EnemyKind::Orc } else { EnemyKind::Goblin }
+            if rng.gen_bool(0.6) { 
+                enemies_to_spawn.push(EnemyKind::Orc);
+                enemies_to_spawn.push(EnemyKind::Goblin);
+            } else { 
+                enemies_to_spawn.push(EnemyKind::Orc); 
+            }
         } else {
-            if rng.gen_bool(0.9) { EnemyKind::Goblin } else { EnemyKind::Orc }
+            if rng.gen_bool(0.5) { 
+                enemies_to_spawn.push(EnemyKind::Goblin);
+                enemies_to_spawn.push(EnemyKind::Goblin);
+                if rng.gen_bool(0.3) { enemies_to_spawn.push(EnemyKind::Goblin); }
+            } else { 
+                enemies_to_spawn.push(EnemyKind::Orc); 
+            }
         }
-    };
-    let (hp, name, enemy_sprite) = match enemy_kind {
-        EnemyKind::Goblin => (20, "Goblin", "images/enemies/Goblin.png"),
-        EnemyKind::Orc => (40, "Orc", "images/enemies/Orc.png"),
-        EnemyKind::Dragon => (150, "Dragon", "images/enemies/Dragon.png"),
-        EnemyKind::DarkKnight => (80, "Dark Knight", "images/enemies/DarkKnight.png"),
     };
 
     // Spawn Background
-    let bg_image = match enemy_kind {
-        EnemyKind::Dragon => "images/backgrounds/DragonLayer.jpg",
-        EnemyKind::Goblin => "images/backgrounds/PoisonCave.jpg",
-        EnemyKind::Orc => "images/backgrounds/RuinedForest.jpg",
-        _ => "images/backgrounds/Battlefield.jpg",
+    // Use the first enemy type to determine background
+    let bg_image = if let Some(first) = enemies_to_spawn.first() {
+        match first {
+            EnemyKind::Dragon => "images/backgrounds/DragonLayer.jpg",
+            EnemyKind::Goblin => "images/backgrounds/PoisonCave.jpg",
+            EnemyKind::Orc => "images/backgrounds/RuinedForest.jpg",
+            _ => "images/backgrounds/Battlefield.jpg",
+        }
+    } else {
+        "images/backgrounds/Battlefield.jpg"
     };
 
     commands.spawn((
@@ -85,57 +97,117 @@ pub fn setup_battle(
         }
     }
 
-    let initial_move = generate_enemy_move(enemy_kind, false);
+    // Spawn Enemies
+    for (i, enemy_kind) in enemies_to_spawn.iter().enumerate() {
+        let (hp, name, enemy_sprite) = match enemy_kind {
+            EnemyKind::Goblin => (20, "Goblin", "images/enemies/Goblin.png"),
+            EnemyKind::Orc => (40, "Orc", "images/enemies/Orc.png"),
+            EnemyKind::Dragon => (150, "Dragon", "images/enemies/Dragon.png"),
+            EnemyKind::DarkKnight => (80, "Dark Knight", "images/enemies/DarkKnight.png"),
+        };
 
-    // Spawn Enemy with Visuals
-    commands.spawn((
-        Enemy { kind: enemy_kind },
-        Health { current: hp, max: hp },
-        Block { value: 0 },
-        StatusStore { weak: initial_weak, ..default() },
-        initial_move,
-        BattleEntity,
-        Interaction::None,
-        Tooltip { text: String::new() },
-        NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                top: Val::Px(50.0),
-                right: Val::Px(50.0),
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
-            background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
-            ..default()
-        }
-    )).with_children(|parent| {
-        parent.spawn(ImageBundle {
-            style: Style {
-                width: Val::Auto,
-                height: Val::Auto,
-                margin: UiRect::bottom(Val::Px(10.0)),
-                ..default()
-            },
-            image: asset_server.load(enemy_sprite).into(),
-            ..default()
-        });
+        let initial_move = generate_enemy_move(*enemy_kind, false);
+        let x_offset = 50.0 + (i as f32 * 250.0);
 
-        parent.spawn(TextBundle::from_section(name, TextStyle {
-            font: Handle::default(),
-            font_size: 30.0,
-            color: Color::WHITE,
-        }));
-        
-        parent.spawn((
-            TextBundle::from_section("Planning...", TextStyle {
-                font: Handle::default(),
-                font_size: 20.0,
-                color: Color::srgb(1.0, 1.0, 0.0),
-            }),
-            EnemyIntentText,
+        let mut entity_cmds = commands.spawn((
+            Enemy { kind: *enemy_kind },
+            Health { current: hp, max: hp },
+            Block { value: 0 },
+            StatusStore { weak: initial_weak, ..default() },
+            initial_move,
+            BattleEntity,
+            Interaction::default(), // Allow clicking
+            Tooltip { text: String::new() },
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(50.0),
+                    right: Val::Px(x_offset),
+                    align_items: AlignItems::Center,
+                    flex_direction: FlexDirection::Column,
+                    border: UiRect::all(Val::Px(2.0)),
+                    ..default()
+                },
+                background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
+                ..default()
+            }
         ));
-    });
+
+        if i == 0 {
+            entity_cmds.insert(Selected);
+        }
+
+        entity_cmds.with_children(|parent| {
+            parent.spawn(ImageBundle {
+                style: Style {
+                    width: Val::Auto,
+                    height: Val::Auto,
+                    margin: UiRect::bottom(Val::Px(10.0)),
+                    ..default()
+                },
+                image: asset_server.load(enemy_sprite).into(),
+                ..default()
+            });
+
+            parent.spawn(TextBundle::from_section(name, TextStyle {
+                font: Handle::default(),
+                font_size: 30.0,
+                color: Color::WHITE,
+            }));
+
+            // Health & Block Row
+            parent.spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Row,
+                    justify_content: JustifyContent::Center,
+                    column_gap: Val::Px(10.0),
+                    ..default()
+                },
+                ..default()
+            }).with_children(|row| {
+                row.spawn((
+                    TextBundle::from_section(format!("HP: {}/{}", hp, hp), TextStyle {
+                        font: Handle::default(),
+                        font_size: 20.0,
+                        color: Color::srgb(0.9, 0.3, 0.3),
+                    }),
+                    EnemyHealthText,
+                ));
+                row.spawn((
+                    TextBundle::from_section("Block: 0", TextStyle {
+                        font: Handle::default(),
+                        font_size: 20.0,
+                        color: Color::srgb(0.5, 0.5, 1.0),
+                    }),
+                    EnemyBlockText,
+                ));
+            });
+
+            // Status
+            parent.spawn((
+                NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        min_height: Val::Px(20.0),
+                        margin: UiRect::top(Val::Px(5.0)),
+                        ..default()
+                    },
+                    ..default()
+                },
+                EnemyStatusText,
+            ));
+            
+            parent.spawn((
+                TextBundle::from_section("Planning...", TextStyle {
+                    font: Handle::default(),
+                    font_size: 20.0,
+                    color: Color::srgb(1.0, 1.0, 0.0),
+                }),
+                EnemyIntentText,
+            ));
+        });
+    }
 
     // Spawn a "Hand" UI container
     commands
@@ -267,59 +339,6 @@ pub fn setup_battle(
                 ..default()
             },
             PotionContainer,
-        ));
-    });
-
-    // Spawn Enemy Stats Panel (Top Right)
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                right: Val::Px(360.0),
-                top: Val::Px(50.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::FlexEnd,
-                padding: UiRect::all(Val::Px(15.0)),
-                border: UiRect::all(Val::Px(2.0)),
-                row_gap: Val::Px(5.0),
-                ..default()
-            },
-            background_color: Color::srgba(0.0, 0.0, 0.0, 0.8).into(),
-            border_color: Color::srgb(0.8, 0.2, 0.2).into(),
-            ..default()
-        },
-        BattleEntity,
-    )).with_children(|parent| {
-        // Enemy Health
-        parent.spawn((
-            TextBundle::from_section(format!("Enemy: {}/{}", hp, hp), TextStyle {
-                font: Handle::default(),
-                font_size: 24.0,
-                color: Color::srgb(0.9, 0.3, 0.3),
-            }),
-            EnemyHealthText,
-        ));
-        // Enemy Block
-        parent.spawn((
-            TextBundle::from_section("Block: 0", TextStyle {
-                font: Handle::default(),
-                font_size: 24.0,
-                color: Color::srgb(0.5, 0.5, 1.0),
-            }),
-            EnemyBlockText,
-        ));
-        // Enemy Status
-        parent.spawn((
-            NodeBundle {
-                style: Style {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    min_height: Val::Px(20.0),
-                    ..default()
-                },
-                ..default()
-            },
-            EnemyStatusText,
         ));
     });
 
@@ -543,7 +562,8 @@ pub fn play_card_system(
     mut discard_pile: ResMut<DiscardPile>,
     card_query: Query<(Entity, &Card, &Interaction, &GlobalTransform), (Changed<Interaction>, Without<CardAnimating>)>,
     mut animating_query: Query<(Entity, &mut Style, &mut CardAnimating)>,
-    mut enemy_query: Query<(&mut Health, &mut Block, &mut StatusStore, &GlobalTransform), (With<Enemy>, Without<Player>)>,
+    mut enemy_query: Query<(Entity, &mut Health, &mut Block, &mut StatusStore, &GlobalTransform), (With<Enemy>, With<Selected>, Without<Player>)>,
+    all_enemies_query: Query<Entity, With<Enemy>>,
     mut player_query: Query<(&mut Energy, &StatusStore, &RelicStore, &mut Health), With<Player>>,
     mut player_block_query: Query<&mut Block, (With<Player>, Without<Enemy>)>,
     mut block_flash_query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
@@ -569,7 +589,7 @@ pub fn play_card_system(
             let start_world = transform.translation().truncate();
             let start_pos = Vec2::new(start_world.x + half_w, start_world.y + half_h);
 
-            let target_pos = if let Ok((_, _, _, enemy_tf)) = enemy_query.get_single() {
+            let target_pos = if let Ok((_, _, _, _, enemy_tf)) = enemy_query.get_single() {
                 let t = enemy_tf.translation().truncate();
                 Vec2::new(t.x + half_w, t.y + half_h)
             } else {
@@ -661,7 +681,7 @@ pub fn play_card_system(
                     ));
                 }
 
-            for (mut enemy_health, mut enemy_block, mut enemy_status, _) in enemy_query.iter_mut() {
+            if let Ok((enemy_entity, mut enemy_health, mut enemy_block, mut enemy_status, _)) = enemy_query.get_single_mut() {
                 if card_data.apply_poison > 0 { enemy_status.poison += card_data.apply_poison; }
                 if card_data.apply_weak > 0 { enemy_status.weak += card_data.apply_weak; }
                 if card_data.apply_stun > 0 { enemy_status.stun += card_data.apply_stun; }
@@ -684,6 +704,16 @@ pub fn play_card_system(
 
                 if enemy_health.current <= 0 {
                     println!("Enemy Defeated!");
+                    commands.entity(enemy_entity).despawn_recursive();
+                    
+                    // Check if any enemies remain
+                    if all_enemies_query.iter().count() > 1 {
+                        // More enemies exist, don't trigger victory yet
+                        commands.entity(entity).despawn_recursive();
+                        discard_pile.cards.push(card_data.clone());
+                        return;
+                    }
+
                     if player_relics.relics.contains(&Relic::BurningBlood) {
                         player_health.current = (player_health.current + 6).min(player_health.max);
                         println!("Burning Blood heals 6 HP!");
@@ -731,7 +761,9 @@ pub fn play_card_system(
                     
                     // Reveal next nodes on map
                     if let Some((level, index)) = game_map.current_node {
-                        game_map.visited_path.push((level, index));
+                        if !game_map.visited_path.contains(&(level, index)) {
+                            game_map.visited_path.push((level, index));
+                        }
                         let visited = game_map.visited_path.clone();
                         for l in 0..=level {
                             for (i, node) in game_map.levels[l].iter_mut().enumerate() {
@@ -747,6 +779,7 @@ pub fn play_card_system(
                             }
                         }
                     }
+
                     next_game_state.set(GameState::Victory);
                     commands.entity(entity).despawn_recursive();
                     discard_pile.cards.push(card_data.clone());
@@ -756,6 +789,44 @@ pub fn play_card_system(
 
             discard_pile.cards.push(card_data.clone());
             commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+pub fn enemy_selection_system(
+    mut commands: Commands,
+    interaction_query: Query<(Entity, &Interaction), (Changed<Interaction>, With<Enemy>)>,
+    mut enemy_query: Query<(Entity, &mut BorderColor), With<Enemy>>,
+    selected_query: Query<Entity, With<Selected>>,
+) {
+    let mut new_selection = None;
+
+    for (entity, interaction) in &interaction_query {
+        if *interaction == Interaction::Pressed {
+            new_selection = Some(entity);
+            break;
+        }
+    }
+    
+    if let Some(new_entity) = new_selection {
+        // Deselect current
+        if let Ok(current) = selected_query.get_single() {
+            commands.entity(current).remove::<Selected>();
+            if let Ok((_, mut border)) = enemy_query.get_mut(current) {
+                *border = Color::srgba(0.0, 0.0, 0.0, 0.0).into();
+            }
+        }
+        
+        // Select new
+        commands.entity(new_entity).insert(Selected);
+        if let Ok((_, mut border)) = enemy_query.get_mut(new_entity) {
+            *border = Color::srgb(1.0, 1.0, 0.0).into();
+        }
+    } else if selected_query.is_empty() {
+        // Auto-select first available if none selected (e.g. previous died)
+        if let Some((entity, mut border)) = enemy_query.iter_mut().next() {
+            commands.entity(entity).insert(Selected);
+            *border = Color::srgb(1.0, 1.0, 0.0).into();
         }
     }
 }
@@ -905,13 +976,12 @@ pub fn reset_turn_state(mut next_turn_state: ResMut<NextState<TurnState>>) {
 pub fn update_status_visuals_system(
     mut commands: Commands,
     player_query: Query<&StatusStore, (With<Player>, Changed<StatusStore>)>,
-    enemy_query: Query<&StatusStore, (With<Enemy>, Changed<StatusStore>)>,
+    enemy_query: Query<(&StatusStore, &Children), (With<Enemy>, Changed<StatusStore>)>,
     player_status_ui: Query<Entity, With<PlayerStatusText>>,
-    enemy_status_ui: Query<Entity, With<EnemyStatusText>>,
+    enemy_status_ui_query: Query<Entity, With<EnemyStatusText>>,
     player_status_all: Query<&StatusStore, With<Player>>,
-    enemy_status_all: Query<&StatusStore, With<Enemy>>,
     player_ui_added: Query<Entity, Added<PlayerStatusText>>,
-    enemy_ui_added: Query<Entity, Added<EnemyStatusText>>,
+    enemy_ui_added: Query<(Entity, &Parent), Added<EnemyStatusText>>,
 ) {
     let spawn_badges = |parent: &mut ChildBuilder, status: &StatusStore| {
         if status.poison > 0 {
@@ -992,8 +1062,19 @@ pub fn update_status_visuals_system(
         }
     }
 
-    if !enemy_query.is_empty() || !enemy_ui_added.is_empty() {
-        if let (Ok(status), Ok(ui_entity)) = (enemy_status_all.get_single(), enemy_status_ui.get_single()) {
+    // Update changed enemies
+    for (status, children) in enemy_query.iter() {
+        for &child in children.iter() {
+            if let Ok(ui_entity) = enemy_status_ui_query.get(child) {
+                commands.entity(ui_entity).despawn_descendants();
+                commands.entity(ui_entity).with_children(|parent| spawn_badges(parent, status));
+            }
+        }
+    }
+
+    // Initialize added UI
+    for (ui_entity, parent) in enemy_ui_added.iter() {
+        if let Ok((status, _)) = enemy_query.get(parent.get()) {
             commands.entity(ui_entity).despawn_descendants();
             commands.entity(ui_entity).with_children(|parent| spawn_badges(parent, status));
         }

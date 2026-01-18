@@ -67,6 +67,7 @@ fn main() {
                 end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
                 discard_pile_click_system.run_if(in_state(TurnState::PlayerTurn)),
                 resize_background_system,
+                enemy_selection_system,
             ).run_if(in_state(GameState::Battle))
         )
         .add_systems(OnEnter(TurnState::PlayerTurnStart), draw_cards_system)

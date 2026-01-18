@@ -311,3 +311,6 @@ pub struct DamageFlashUi;
 
 #[derive(Component)]
 pub struct BlockFlashUi;
+
+#[derive(Component)]
+pub struct Selected;
