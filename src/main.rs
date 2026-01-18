@@ -43,7 +43,7 @@ fn main() {
         .init_state::<TurnState>()
         .add_systems(Startup, setup_camera)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
-        .add_systems(Update, menu_interaction_system.run_if(in_state(GameState::MainMenu)))
+        .add_systems(Update, (menu_interaction_system, resize_background_system).run_if(in_state(GameState::MainMenu)))
         .add_systems(OnExit(GameState::MainMenu), (despawn_screen::<MainMenuUI>, setup_game))
         .add_systems(OnEnter(GameState::Battle), setup_battle)
         .add_systems(

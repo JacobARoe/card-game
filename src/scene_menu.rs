@@ -2,7 +2,17 @@ use bevy::prelude::*;
 use crate::components::*;
 use crate::states::*;
 
-pub fn setup_main_menu(mut commands: Commands) {
+pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("images/backgrounds/Menu.jpg"),
+            transform: Transform::from_xyz(0.0, 0.0, -100.0),
+            ..default()
+        },
+        MainMenuUI,
+        SceneBackground,
+    ));
+
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -13,7 +23,7 @@ pub fn setup_main_menu(mut commands: Commands) {
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
-            background_color: Color::srgb(0.1, 0.1, 0.1).into(),
+            background_color: Color::srgba(0.1, 0.1, 0.1, 0.5).into(),
             ..default()
         },
         MainMenuUI,
