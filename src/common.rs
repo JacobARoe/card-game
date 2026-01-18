@@ -5,8 +5,6 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::resources::*;
-use crate::item_relics::Relic;
-use crate::item_potions::Potion;
 use crate::item_cards;
 
 #[derive(Component)]
@@ -20,35 +18,51 @@ pub fn setup_camera(mut commands: Commands) {
     ));
 }
 
-pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
+pub fn setup_game(mut commands: Commands, player_query: Query<Entity, With<Player>>, run_state: Res<RunState>) {
     // Despawn existing player if any (for restart)
     for entity in &player_query {
         commands.entity(entity).despawn_recursive();
     }
 
+    let (starting_relics, starting_deck) = match run_state.character_class {
+        crate::components::CharacterClass::Duelist => {
+            let mut deck = Vec::new();
+            for _ in 0..5 { deck.push(item_cards::strike()); }
+            for _ in 0..2 { deck.push(item_cards::bash()); }
+            for _ in 0..3 { deck.push(item_cards::defend()); }
+            (Vec::new(), deck)
+        },
+        crate::components::CharacterClass::Spellweaver => {
+            let mut deck = Vec::new();
+            for _ in 0..3 { deck.push(item_cards::fire_essence()); }
+            for _ in 0..2 { deck.push(item_cards::wind_essence()); }
+            for _ in 0..3 { deck.push(item_cards::magic_bolt()); }
+            for _ in 0..2 { deck.push(item_cards::magic_shield()); }
+            (Vec::new(), deck)
+        }
+    };
+
     // Spawn Player (Persistent)
-    commands.spawn((
+    let mut player_cmds = commands.spawn((
         Player,
         Health { current: 50, max: 50 },
         Energy { current: 3, max: 3 },
         Block { value: 0 },
         StatusStore::default(),
-        RelicStore { relics: vec![Relic::BurningBlood] },
-        PotionStore { potions: vec![Potion::Health, Potion::Strength] },
+        RelicStore { relics: starting_relics },
+        PotionStore { potions: Vec::new() },
         Gold { amount: 200 },
     ));
 
+    if run_state.character_class == CharacterClass::Spellweaver {
+        player_cmds.insert((
+            Mana { current: 0 },
+            ActiveSpell::default(),
+        ));
+    }
+
     // Create Deck
-    let mut deck_cards = Vec::new();
-    for _ in 0..5 {
-        deck_cards.push(item_cards::strike());
-    }
-    for _ in 0..2 {
-        deck_cards.push(item_cards::bash());
-    }
-    for _ in 0..3 {
-        deck_cards.push(item_cards::defend());
-    }
+    let mut deck_cards = starting_deck;
 
     // Shuffle
     let mut rng = thread_rng();

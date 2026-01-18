@@ -292,6 +292,20 @@ pub fn setup_battle(
             }),
             PlayerEnergyText,
         ));
+        // Player Spell Container
+        parent.spawn((
+            NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    min_height: Val::Px(30.0),
+                    margin: UiRect::top(Val::Px(5.0)),
+                    ..default()
+                },
+                ..default()
+            },
+            PlayerSpellContainer,
+        ));
         // Player Gold
         parent.spawn((
             TextBundle::from_section("Gold: 0", TextStyle {
@@ -445,13 +459,26 @@ pub fn draw_cards_system(
     mut deck: ResMut<Deck>,
     mut discard: ResMut<DiscardPile>,
     hand_container_query: Query<Entity, With<HandContainer>>,
-    mut player_query: Query<(&mut Energy, &mut Block, &mut Health, &mut StatusStore, &RelicStore), With<Player>>,
+    mut player_query: Query<(&mut Energy, Option<&mut Mana>, &mut Block, &mut Health, &mut StatusStore, &RelicStore, Option<&mut ActiveSpell>), With<Player>>,
     mut flash_query: Query<&mut BackgroundColor, With<DamageFlashUi>>,
     first_turn_query: Query<Entity, With<FirstTurn>>,
+    run_state: Res<RunState>,
 ) {
-    if let Ok((mut energy, mut block, mut health, mut status, relics)) = player_query.get_single_mut() {
-        // Reset Energy
-        energy.current = energy.max;
+    if let Ok((mut energy, mut mana, mut block, mut health, mut status, relics, mut active_spell)) = player_query.get_single_mut() {
+        // Reset Energy / Mana
+        if run_state.character_class == CharacterClass::Spellweaver {
+            if let Some(ref mut m) = mana {
+                m.current += 2;
+            }
+            // No cap
+        } else {
+            energy.current = energy.max;
+        }
+        
+        // Reset Active Spell for new turn
+        if let Some(ref mut spell) = active_spell {
+            **spell = ActiveSpell::default();
+        }
         
         // Reset Block (unless Anchor on first turn)
         if let Ok(entity) = first_turn_query.get_single() {
@@ -562,39 +589,45 @@ pub fn play_card_system(
     mut discard_pile: ResMut<DiscardPile>,
     card_query: Query<(Entity, &Card, &Interaction, &GlobalTransform), (Changed<Interaction>, Without<CardAnimating>)>,
     mut animating_query: Query<(Entity, &mut Style, &mut CardAnimating)>,
-    mut enemy_query: Query<(Entity, &mut Health, &mut Block, &mut StatusStore, &GlobalTransform), (With<Enemy>, With<Selected>, Without<Player>)>,
-    all_enemies_query: Query<Entity, With<Enemy>>,
-    mut player_query: Query<(&mut Energy, &StatusStore, &RelicStore, &mut Health), With<Player>>,
+    mut enemy_query: Query<(Entity, &mut Health, &mut Block, &mut StatusStore, &GlobalTransform, Option<&Selected>), (With<Enemy>, Without<Player>)>,
+    mut player_query: Query<(&mut Energy, Option<&mut Mana>, Option<&mut ActiveSpell>, &StatusStore, &RelicStore, &mut Health), With<Player>>,
     mut player_block_query: Query<&mut Block, (With<Player>, Without<Enemy>)>,
     mut block_flash_query: Query<&mut BackgroundColor, With<BlockFlashUi>>,
     window_query: Query<&Window>,
     relic_ui_query: Query<(&RelicIcon, &GlobalTransform)>,
     mut game_map: ResMut<GameMap>,
     time: Res<Time>,
+    run_state: Res<RunState>,
 ) {
     // 1. Handle Clicks (Start Animation)
     for (card_entity, card_data, interaction, transform) in card_query.iter() {
         if *interaction == Interaction::Pressed {
-            let (mut energy, _, _, _) = if let Ok(e) = player_query.get_single_mut() { e } else { continue };
-            if energy.current < card_data.cost {
-                println!("Not enough energy!");
-                continue;
+            let (mut energy, mut mana, _, _, _, _) = if let Ok(e) = player_query.get_single_mut() { e } else { continue };
+            
+            if run_state.character_class == CharacterClass::Spellweaver {
+                if let Some(ref mut m) = mana {
+                    if m.current < card_data.cost {
+                        println!("Not enough mana!");
+                        continue;
+                    }
+                    m.current -= card_data.cost;
+                }
+            } else {
+                if energy.current < card_data.cost {
+                    println!("Not enough energy!");
+                    continue;
+                }
+                energy.current -= card_data.cost;
             }
-            energy.current -= card_data.cost;
 
             let window = window_query.single();
             let half_w = window.width() / 2.0;
             let half_h = window.height() / 2.0;
 
             let start_world = transform.translation().truncate();
-            let start_pos = Vec2::new(start_world.x + half_w, start_world.y + half_h);
+            let start_pos = Vec2::new(start_world.x + half_w, start_world.y);// + half_h);
 
-            let target_pos = if let Ok((_, _, _, _, enemy_tf)) = enemy_query.get_single() {
-                let t = enemy_tf.translation().truncate();
-                Vec2::new(t.x + half_w, t.y + half_h)
-            } else {
-                start_pos
-            };
+            let target_pos = Vec2::new(half_w, half_h);
 
             commands.entity(card_entity)
                 .remove::<Interaction>()
@@ -634,11 +667,90 @@ pub fn play_card_system(
             let card_data = &anim.card;
             println!("Player plays: {}", card_data.name);
 
-            let (_, player_status, player_relics, mut player_health) = if let Ok(p) = player_query.get_single_mut() { p } else { continue };
+            let (_, _, mut active_spell, player_status, player_relics, mut player_health) = if let Ok(p) = player_query.get_single_mut() { p } else { continue };
 
-            if card_data.block > 0 {
+            // Handle Essence (Modifiers)
+            if card_data.is_spell_modifier {
+                if let Some(ref mut spell) = active_spell {
+                    // Check for cancellation
+                    let opposite = match card_data.element {
+                        SpellElement::Fire => SpellElement::Ice,
+                        SpellElement::Ice => SpellElement::Fire,
+                        SpellElement::Wind => SpellElement::Stone,
+                        SpellElement::Stone => SpellElement::Wind,
+                        _ => SpellElement::Neutral,
+                    };
+
+                    let mut cancelled = false;
+                    if opposite != SpellElement::Neutral {
+                        if let Some(idx) = spell.essences.iter().position(|e| e.element == opposite) {
+                            // Remove the opposite essence
+                            let removed = spell.essences.remove(idx);
+                            spell.bonus_damage -= removed.damage;
+                            spell.bonus_block -= removed.block;
+                            cancelled = true;
+                            println!("Essence Cancelled! Removed {:?} due to {:?}", opposite, card_data.element);
+                            
+                            // Update main element if needed
+                            if let Some(last) = spell.essences.last() {
+                                spell.element = last.element;
+                            } else {
+                                spell.element = SpellElement::Neutral;
+                            }
+                        }
+                    }
+
+                    if !cancelled {
+                        spell.bonus_damage += card_data.damage;
+                        spell.bonus_block += card_data.block;
+                        spell.element = card_data.element;
+                        spell.essences.push(EssenceInfo {
+                            element: card_data.element,
+                            damage: card_data.damage,
+                            block: card_data.block,
+                        });
+                        println!("Essence Added! Current Bonus: +{} Dmg / +{} Blk ({:?})", spell.bonus_damage, spell.bonus_block, spell.element);
+                    }
+                }
+                
+                discard_pile.cards.push(card_data.clone());
+                commands.entity(entity).despawn_recursive();
+                continue;
+            }
+
+            let mut final_damage = card_data.damage;
+            let mut final_block = card_data.block;
+
+            // Spell Flags
+            let mut spell_has_fire = false;
+            let mut spell_has_ice = false;
+            let mut spell_has_wind = false;
+            let mut spell_has_stone = false;
+
+            if card_data.is_spell_source {
+                if let Some(ref mut spell) = active_spell {
+                    final_damage += spell.bonus_damage;
+                    final_block += spell.bonus_block;
+                    
+                    for essence in &spell.essences {
+                        match essence.element {
+                            SpellElement::Fire => spell_has_fire = true,
+                            SpellElement::Ice => spell_has_ice = true,
+                            SpellElement::Wind => spell_has_wind = true,
+                            SpellElement::Stone => spell_has_stone = true,
+                            _ => {},
+                        }
+                    }
+                    println!("Spell Cast! Total: {} Dmg / {} Blk", final_damage, final_block);
+                    
+                    // Consume Essence
+                    **spell = ActiveSpell::default();
+                }
+            }
+
+            if final_block > 0 {
                 if let Ok(mut block) = player_block_query.get_single_mut() {
-                    let mut block_gain = card_data.block;
+                    let mut block_gain = final_block;
                     if player_relics.relics.contains(&Relic::OddlySmoothStone) {
                         block_gain += 1;
                     }
@@ -681,12 +793,65 @@ pub fn play_card_system(
                     ));
                 }
 
-            if let Ok((enemy_entity, mut enemy_health, mut enemy_block, mut enemy_status, _)) = enemy_query.get_single_mut() {
+            // Identify Targets
+            let mut target_entities = Vec::new();
+            if spell_has_wind {
+                for (e, _, _, _, _, _) in enemy_query.iter() {
+                    target_entities.push(e);
+                }
+            } else {
+                if let Some((e, _, _, _, _, _)) = enemy_query.iter().find(|(_, _, _, _, _, s)| s.is_some()) {
+                    target_entities.push(e);
+                }
+            }
+
+            // Calculate Spread (Burning + Wind)
+            let mut burning_snapshot = Vec::new();
+            if spell_has_wind {
+                // Snapshot burning stacks from all enemies before applying spread
+                for (e, _, _, status, _, _) in enemy_query.iter() {
+                    if status.burning > 0 {
+                        if target_entities.contains(&e) {
+                            burning_snapshot.push((e, status.burning));
+                        }
+                    }
+                }
+            }
+
+            // Apply to Targets
+            for target_entity in target_entities {
+                let (enemy_entity, mut enemy_health, mut enemy_block, mut enemy_status, _, _) = if let Ok(e) = enemy_query.get_mut(target_entity) { e } else { continue };
+                
                 if card_data.apply_poison > 0 { enemy_status.poison += card_data.apply_poison; }
                 if card_data.apply_weak > 0 { enemy_status.weak += card_data.apply_weak; }
                 if card_data.apply_stun > 0 { enemy_status.stun += card_data.apply_stun; }
 
-                let mut damage = card_data.damage;
+                let mut damage = final_damage;
+
+                // Elemental Reactions
+                if spell_has_ice && enemy_status.burning > 0 {
+                    enemy_status.burning = 0;
+                    println!("Extinguished!");
+                }
+                if spell_has_fire && enemy_status.frozen > 0 {
+                    enemy_status.frozen = 0;
+                    println!("Melted!");
+                }
+                if spell_has_stone && enemy_status.frozen > 0 {
+                    enemy_status.frozen = 0;
+                    damage *= 2;
+                    println!("Shattered! Double Damage!");
+                }
+                if spell_has_wind {
+                    // Spread burning from others to this enemy
+                    for (source_entity, amount) in &burning_snapshot {
+                        if *source_entity != enemy_entity {
+                            enemy_status.burning += amount;
+                            println!("Burning spread from {:?} to {:?} (+{})", source_entity, enemy_entity, amount);
+                        }
+                    }
+                }
+
                 if player_relics.relics.contains(&Relic::Vajra) && damage > 0 {
                     damage += 1;
                 }
@@ -702,12 +867,20 @@ pub fn play_card_system(
                 enemy_health.current -= damage - block_damage;
                 println!("Enemy Health: {}/{}", enemy_health.current, enemy_health.max);
 
+                // Apply Status Effects if Threshold Met
+                if damage > 10 {
+                    if spell_has_fire { enemy_status.burning += 3; } // Arbitrary amount? "applies burning". Let's say 3.
+                    if spell_has_ice { enemy_status.frozen += 2; } // Let's say 2.
+                    if spell_has_stone { enemy_status.stun += 1; }
+                }
+
                 if enemy_health.current <= 0 {
                     println!("Enemy Defeated!");
                     commands.entity(enemy_entity).despawn_recursive();
                     
                     // Check if any enemies remain
-                    if all_enemies_query.iter().count() > 1 {
+                    let remaining = enemy_query.iter().filter(|(_, h, _, _, _, _)| h.current > 0).count();
+                    if remaining > 0 {
                         // More enemies exist, don't trigger victory yet
                         commands.entity(entity).despawn_recursive();
                         discard_pile.cards.push(card_data.clone());
@@ -1047,6 +1220,52 @@ pub fn update_status_visuals_system(
                 Tooltip { text: "Stunned: Cannot act this turn.".to_string() },
             )).with_children(|p| {
                 p.spawn(TextBundle::from_section("Stunned", TextStyle {
+                    font_size: 16.0,
+                    color: Color::WHITE,
+                    font: Handle::default(),
+                }));
+            });
+        }
+        if status.burning > 0 {
+            parent.spawn((
+                NodeBundle {
+                    style: Style {
+                        margin: UiRect::right(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(3.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    background_color: Color::srgba(1.0, 0.4, 0.0, 0.5).into(),
+                    border_color: Color::srgb(1.0, 0.6, 0.0).into(),
+                    ..default()
+                },
+                Interaction::None,
+                Tooltip { text: "Burning: Takes damage at start of turn.".to_string() },
+            )).with_children(|p| {
+                p.spawn(TextBundle::from_section(format!("Burn {}", status.burning), TextStyle {
+                    font_size: 16.0,
+                    color: Color::WHITE,
+                    font: Handle::default(),
+                }));
+            });
+        }
+        if status.frozen > 0 {
+            parent.spawn((
+                NodeBundle {
+                    style: Style {
+                        margin: UiRect::right(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(3.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    background_color: Color::srgba(0.2, 0.8, 1.0, 0.5).into(),
+                    border_color: Color::srgb(0.4, 0.9, 1.0).into(),
+                    ..default()
+                },
+                Interaction::None,
+                Tooltip { text: "Frozen: Deal 25% less damage.".to_string() },
+            )).with_children(|p| {
+                p.spawn(TextBundle::from_section(format!("Frz {}", status.frozen), TextStyle {
                     font_size: 16.0,
                     color: Color::WHITE,
                     font: Handle::default(),

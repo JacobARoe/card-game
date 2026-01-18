@@ -82,12 +82,81 @@ pub fn update_pile_ui(
 }
 
 pub fn update_energy_ui(
-    player_energy_query: Query<&Energy, (With<Player>, Changed<Energy>)>,
+    player_query: Query<(&Energy, Option<&Mana>), With<Player>>,
     mut energy_text_query: Query<&mut Text, With<PlayerEnergyText>>,
+    run_state: Res<RunState>,
 ) {
-    if let Ok(energy) = player_energy_query.get_single() {
+    if let Ok((energy, mana)) = player_query.get_single() {
         for mut text in &mut energy_text_query {
-            text.sections[0].value = format!("Energy: {}/{}", energy.current, energy.max);
+            if run_state.character_class == CharacterClass::Spellweaver {
+                if let Some(m) = mana {
+                    text.sections[0].value = format!("Mana: {}", m.current);
+                    text.sections[0].style.color = Color::srgb(0.8, 0.4, 1.0);
+                }
+            } else {
+                text.sections[0].value = format!("Energy: {}/{}", energy.current, energy.max);
+                text.sections[0].style.color = Color::srgb(0.2, 0.8, 1.0);
+            }
+        }
+    }
+}
+
+pub fn update_spell_ui(
+    mut commands: Commands,
+    player_query: Query<&ActiveSpell, (With<Player>, Changed<ActiveSpell>)>,
+    container_query: Query<Entity, With<PlayerSpellContainer>>,
+) {
+    if let Ok(active_spell) = player_query.get_single() {
+        if let Ok(container) = container_query.get_single() {
+            commands.entity(container).despawn_descendants();
+            
+            commands.entity(container).with_children(|parent| {
+                for essence in &active_spell.essences {
+                    let (color, text_code) = match essence.element {
+                        SpellElement::Fire => (Color::srgb(0.8, 0.2, 0.2), "F"),
+                        SpellElement::Ice => (Color::srgb(0.2, 0.8, 1.0), "I"),
+                        SpellElement::Wind => (Color::srgb(0.8, 0.8, 0.8), "W"),
+                        SpellElement::Stone => (Color::srgb(0.5, 0.3, 0.1), "S"),
+                        SpellElement::Neutral => (Color::srgb(0.5, 0.5, 0.5), "N"),
+                    };
+                    
+                    let mut tooltip_text = String::new();
+                    match essence.element {
+                        SpellElement::Fire => tooltip_text.push_str("Fire Essence\n"),
+                        SpellElement::Ice => tooltip_text.push_str("Ice Essence\n"),
+                        SpellElement::Wind => tooltip_text.push_str("Wind Essence\n"),
+                        SpellElement::Stone => tooltip_text.push_str("Stone Essence\n"),
+                        SpellElement::Neutral => tooltip_text.push_str("Essence\n"),
+                    }
+                    if essence.damage > 0 { tooltip_text.push_str(&format!("+{} Damage\n", essence.damage)); }
+                    if essence.block > 0 { tooltip_text.push_str(&format!("+{} Block\n", essence.block)); }
+
+                    parent.spawn((
+                        NodeBundle {
+                            style: Style {
+                                width: Val::Px(24.0),
+                                height: Val::Px(24.0),
+                                margin: UiRect::right(Val::Px(4.0)),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                border: UiRect::all(Val::Px(1.0)),
+                                ..default()
+                            },
+                            background_color: color.into(),
+                            border_color: Color::WHITE.into(),
+                            ..default()
+                        },
+                        Interaction::default(),
+                        Tooltip { text: tooltip_text },
+                    )).with_children(|p| {
+                        p.spawn(TextBundle::from_section(text_code, TextStyle {
+                            font: Handle::default(),
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                        }));
+                    });
+                }
+            });
         }
     }
 }

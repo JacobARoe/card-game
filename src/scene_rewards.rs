@@ -6,7 +6,7 @@ use crate::states::*;
 use crate::item_cards::generate_random_card;
 use crate::common::spawn_card_visual;
 
-pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<RewardStore>, game_map: Res<GameMap>) {
+pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<RewardStore>, game_map: Res<GameMap>, run_state: Res<RunState>) {
     // Generate rewards if not already generated
     if !reward_store.generated {
         let mut rng = thread_rng();
@@ -24,7 +24,7 @@ pub fn setup_victory_screen(mut commands: Commands, mut reward_store: ResMut<Rew
         // Card Reward (3 random choices)
         let mut choices = Vec::new();
         for _ in 0..3 {
-            choices.push(generate_random_card());
+            choices.push(generate_random_card(run_state.character_class));
         }
         reward_store.card_choices = Some(choices);
         

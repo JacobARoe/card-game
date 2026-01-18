@@ -19,9 +19,12 @@ mod item_potions;
 mod scene_rewards;
 mod scene_game_over;
 mod enemies;
+mod scene_character_select;
+mod scene_bonus_select;
 
 use components::*;
 use states::*;
+use resources::*;
 use common::*;
 use ui::*;
 use scene_battle::*;
@@ -35,16 +38,19 @@ use scene_event::*;
 use scene_rewards::*;
 use scene_game_over::*;
 use enemies::*;
+use scene_character_select::*;
+use scene_bonus_select::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins) // Adds windowing, input, etc.
         .init_state::<GameState>()
         .init_state::<TurnState>()
+        .init_resource::<RunState>()
         .add_systems(Startup, setup_camera)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
         .add_systems(Update, (menu_interaction_system, resize_background_system).run_if(in_state(GameState::MainMenu)))
-        .add_systems(OnExit(GameState::MainMenu), (despawn_screen::<MainMenuUI>, setup_game))
+        .add_systems(OnExit(GameState::MainMenu), despawn_screen::<MainMenuUI>)
         .add_systems(OnEnter(GameState::Battle), setup_battle)
         .add_systems(
             Update,
@@ -54,6 +60,7 @@ fn main() {
                 card_hover_system,
                 update_health_ui,
                 update_energy_ui,
+                update_spell_ui,
                 update_status_visuals_system,
                 tooltip_system,
                 update_relic_ui,
@@ -103,5 +110,11 @@ fn main() {
         .add_systems(OnEnter(GameState::Event), setup_event_screen)
         .add_systems(Update, event_interaction_system.run_if(in_state(GameState::Event)))
         .add_systems(OnExit(GameState::Event), despawn_screen::<EventUI>)
+        .add_systems(OnEnter(GameState::CharacterSelect), setup_character_select_screen)
+        .add_systems(Update, (character_select_interaction_system, resize_background_system).run_if(in_state(GameState::CharacterSelect)))
+        .add_systems(OnExit(GameState::CharacterSelect), (despawn_screen::<CharacterSelectUI>, setup_game))
+        .add_systems(OnEnter(GameState::BonusSelect), setup_bonus_select_screen)
+        .add_systems(Update, bonus_select_interaction_system.run_if(in_state(GameState::BonusSelect)))
+        .add_systems(OnExit(GameState::BonusSelect), despawn_screen::<BonusSelectUI>)
         .run();
 }

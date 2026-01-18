@@ -12,6 +12,7 @@ pub fn setup_shop_screen(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     player_query: Query<&Gold, With<Player>>,
+    run_state: Res<RunState>,
     mut shop_store: ResMut<ShopStore>
 ) {
     let gold = player_query.single().amount;
@@ -22,7 +23,7 @@ pub fn setup_shop_screen(
         // Generate Cards
         shop_store.cards.clear();
         for _ in 0..3 {
-            let card = generate_random_card();
+            let card = generate_random_card(run_state.character_class);
             let cost = rng.gen_range(40..80);
             shop_store.cards.push(Some((card, cost)));
         }

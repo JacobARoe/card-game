@@ -5,6 +5,13 @@ use crate::item_potions::Potion;
 #[derive(Component)]
 pub struct Player;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CharacterClass {
+    #[default]
+    Duelist,
+    Spellweaver,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum EnemyKind {
     Goblin,
@@ -31,6 +38,43 @@ pub struct Energy {
 }
 
 #[derive(Component, Default)]
+pub struct Mana {
+    pub current: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpellElement {
+    #[default]
+    Neutral,
+    Fire,
+    Ice,
+    Wind,
+    Stone,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CastableSpell {
+    pub damage: i32,
+    pub block: i32,
+    pub element: SpellElement,
+}
+
+#[derive(Debug, Clone)]
+pub struct EssenceInfo {
+    pub element: SpellElement,
+    pub damage: i32,
+    pub block: i32,
+}
+
+#[derive(Component, Default)]
+pub struct ActiveSpell {
+    pub bonus_damage: i32,
+    pub bonus_block: i32,
+    pub element: SpellElement,
+    pub essences: Vec<EssenceInfo>,
+}
+
+#[derive(Component, Default)]
 pub struct Block {
     pub value: i32,
 }
@@ -41,6 +85,8 @@ pub struct StatusStore {
     pub weak: i32,
     pub strength: i32,
     pub stun: i32,
+    pub burning: i32,
+    pub frozen: i32,
 }
 
 #[derive(Component)]
@@ -71,6 +117,9 @@ pub struct Card {
     pub apply_stun: i32,
     pub upgraded: bool,
     pub rarity: Rarity,
+    pub is_spell_modifier: bool,
+    pub is_spell_source: bool,
+    pub element: SpellElement,
 }
 
 #[derive(Component)]
@@ -314,3 +363,30 @@ pub struct BlockFlashUi;
 
 #[derive(Component)]
 pub struct Selected;
+
+#[derive(Component)]
+pub struct CharacterSelectUI;
+
+#[derive(Component)]
+pub struct SelectDuelistButton;
+
+#[derive(Component)]
+pub struct SelectSpellweaverButton;
+
+#[derive(Component)]
+pub struct PlayerSpellContainer;
+
+#[derive(Component)]
+pub struct BonusSelectUI;
+
+#[derive(Component)]
+pub struct BonusOptionButton {
+    pub bonus_type: BonusType,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BonusType {
+    Gold,
+    Relic,
+    Upgrade,
+}
