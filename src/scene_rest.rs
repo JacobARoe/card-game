@@ -6,9 +6,13 @@ use crate::components::*;
 use crate::resources::*;
 use crate::states::*;
 
-pub fn setup_rest_screen(mut commands: Commands, asset_server: Res<AssetServer>, player_query: Query<&Health, With<Player>>) {
+pub fn setup_rest_screen(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    player_query: Query<&Health, With<Player>>,
+) {
     let health = player_query.single();
-    
+
     commands.spawn((
         SpriteBundle {
             texture: asset_server.load("images/backgrounds/Campsite.jpg"),
@@ -19,97 +23,117 @@ pub fn setup_rest_screen(mut commands: Commands, asset_server: Res<AssetServer>,
         SceneBackground,
     ));
 
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                background_color: Color::srgba(0.1, 0.1, 0.1, 0.7).into(),
                 ..default()
             },
-            background_color: Color::srgba(0.1, 0.1, 0.1, 0.7).into(),
-            ..default()
-        },
-        RestUI,
-    )).with_children(|parent| {
-        parent.spawn(TextBundle::from_section("Rest Site", TextStyle {
-            font: Handle::default(),
-            font_size: 50.0,
-            color: Color::WHITE,
-        }));
+            RestUI,
+        ))
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "Rest Site",
+                TextStyle {
+                    font: Handle::default(),
+                    font_size: 50.0,
+                    color: Color::WHITE,
+                },
+            ));
 
-        // Heal Button
-        parent.spawn((
-            ButtonBundle {
-                style: Style {
-                    width: Val::Px(200.0),
-                    height: Val::Px(60.0),
-                    margin: UiRect::all(Val::Px(20.0)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                background_color: Color::srgb(0.2, 0.6, 0.2).into(),
-                ..default()
-            },
-            HealButton,
-        )).with_children(|p| {
-            let heal_amount = (health.max as f32 * 0.3) as i32;
-            p.spawn(TextBundle::from_section(format!("Heal ({} HP)", heal_amount), TextStyle {
-                font: Handle::default(),
-                font_size: 30.0,
-                color: Color::WHITE,
-            }));
-        });
+            // Heal Button
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(200.0),
+                            height: Val::Px(60.0),
+                            margin: UiRect::all(Val::Px(20.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.2, 0.6, 0.2).into(),
+                        ..default()
+                    },
+                    HealButton,
+                ))
+                .with_children(|p| {
+                    let heal_amount = (health.max as f32 * 0.3) as i32;
+                    p.spawn(TextBundle::from_section(
+                        format!("Heal ({} HP)", heal_amount),
+                        TextStyle {
+                            font: Handle::default(),
+                            font_size: 30.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
 
-        // Upgrade Button
-        parent.spawn((
-            ButtonBundle {
-                style: Style {
-                    width: Val::Px(250.0),
-                    height: Val::Px(60.0),
-                    margin: UiRect::all(Val::Px(20.0)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                background_color: Color::srgb(0.6, 0.2, 0.2).into(),
-                ..default()
-            },
-            UpgradeButton,
-        )).with_children(|p| {
-            p.spawn(TextBundle::from_section("Upgrade Random Card", TextStyle {
-                font: Handle::default(),
-                font_size: 30.0,
-                color: Color::WHITE,
-            }));
+            // Upgrade Button
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(250.0),
+                            height: Val::Px(60.0),
+                            margin: UiRect::all(Val::Px(20.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.6, 0.2, 0.2).into(),
+                        ..default()
+                    },
+                    UpgradeButton,
+                ))
+                .with_children(|p| {
+                    p.spawn(TextBundle::from_section(
+                        "Upgrade Random Card",
+                        TextStyle {
+                            font: Handle::default(),
+                            font_size: 30.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
+
+            // Leave Button
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(150.0),
+                            height: Val::Px(50.0),
+                            margin: UiRect::top(Val::Px(40.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.3, 0.3, 0.3).into(),
+                        ..default()
+                    },
+                    LeaveRestButton,
+                ))
+                .with_children(|p| {
+                    p.spawn(TextBundle::from_section(
+                        "Leave",
+                        TextStyle {
+                            font: Handle::default(),
+                            font_size: 25.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
         });
-        
-        // Leave Button
-        parent.spawn((
-            ButtonBundle {
-                style: Style {
-                    width: Val::Px(150.0),
-                    height: Val::Px(50.0),
-                    margin: UiRect::top(Val::Px(40.0)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                background_color: Color::srgb(0.3, 0.3, 0.3).into(),
-                ..default()
-            },
-            LeaveRestButton,
-        )).with_children(|p| {
-            p.spawn(TextBundle::from_section("Leave", TextStyle {
-                font: Handle::default(),
-                font_size: 25.0,
-                color: Color::WHITE,
-            }));
-        });
-    });
 }
 
 pub fn rest_interaction_system(
@@ -135,17 +159,24 @@ pub fn rest_interaction_system(
         if *interaction == Interaction::Pressed {
             // Upgrade random card
             let mut rng = thread_rng();
-            let upgradable_indices: Vec<usize> = deck.cards.iter().enumerate()
+            let upgradable_indices: Vec<usize> = deck
+                .cards
+                .iter()
+                .enumerate()
                 .filter(|(_, c)| !c.upgraded)
                 .map(|(i, _)| i)
                 .collect();
-            
+
             if let Some(&index) = upgradable_indices.choose(&mut rng) {
                 let card = &mut deck.cards[index];
                 card.upgraded = true;
                 card.name.push_str("+");
-                if card.damage > 0 { card.damage += 3; }
-                if card.block > 0 { card.block += 3; }
+                if card.damage > 0 {
+                    card.damage += 3;
+                }
+                if card.block > 0 {
+                    card.block += 3;
+                }
                 println!("Upgraded {}!", card.name);
                 next_game_state.set(GameState::Map);
             } else {

@@ -24,7 +24,9 @@ pub enum TurnState {
     Setup,
     PlayerTurnStart,
     PlayerTurn,
+    PlayerAttackAnimating,
     PlayerTurnEnd,
     EnemyTurn,
+    EnemyAttackAnimating,
     ViewingDiscard,
 }

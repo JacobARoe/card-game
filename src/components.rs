@@ -1,6 +1,6 @@
-use bevy::prelude::*;
-use crate::item_relics::Relic;
 use crate::item_potions::Potion;
+use crate::item_relics::Relic;
+use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct Player;
@@ -72,12 +72,52 @@ pub struct ActiveSpell {
     pub bonus_block: i32,
     pub element: SpellElement,
     pub essences: Vec<EssenceInfo>,
+    // Store elements cast sequentially for combos
+    pub essence_history: Vec<SpellElement>,
 }
 
 #[derive(Component, Default)]
 pub struct Block {
     pub value: i32,
 }
+
+#[derive(Component, Default)]
+pub struct PlayerCombo {
+    pub current: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReflexSuccess {
+    Miss,
+    Good,
+    Perfect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReflexVisualType {
+    ShrinkingRing,
+    LinearSlider,
+}
+
+#[derive(Component)]
+pub struct ReflexState {
+    pub start_time: f32, // Unused conceptually if using timer, but good to have
+    pub timer: Timer,
+    pub perfect_window_start: f32, // ratio 0.0 to 1.0 of the timer
+    pub perfect_window_end: f32,
+    pub result: Option<ReflexSuccess>,
+    pub is_defensive: bool,
+    pub source_entity: Option<Entity>, // For the attacking player/enemy
+    pub target_entity: Option<Entity>, // For the enemy being attacked
+    pub base_damage: i32,              // Keep track of damage for resolution
+    pub visual_type: ReflexVisualType,
+}
+
+#[derive(Component)]
+pub struct ReflexUI;
+
+#[derive(Component)]
+pub struct ReflexMarker;
 
 #[derive(Component, Default)]
 pub struct StatusStore {
@@ -120,6 +160,16 @@ pub struct Card {
     pub is_spell_modifier: bool,
     pub is_spell_source: bool,
     pub element: SpellElement,
+    pub combo_points_granted: u32,
+    pub finisher_combo_cost: u32,
+}
+
+#[derive(Component)]
+pub struct PendingPlayerAttack {
+    pub targets: Vec<Entity>,
+    pub damage: i32,
+    pub card: Card,
+    pub spell_elements: Vec<SpellElement>,
 }
 
 #[derive(Component)]
@@ -169,6 +219,9 @@ pub struct PlayerStatusText;
 
 #[derive(Component)]
 pub struct EnemyStatusText;
+
+#[derive(Component)]
+pub struct PlayerComboText;
 
 #[derive(Component)]
 pub struct PlayerRelicText;
@@ -360,6 +413,12 @@ pub struct DamageFlashUi;
 
 #[derive(Component)]
 pub struct BlockFlashUi;
+
+#[derive(Component)]
+pub struct EnemyQueue(pub Vec<Entity>); // Queue tracking during EnemyTurn
+
+#[derive(Component)]
+pub struct AttackingEnemy;
 
 #[derive(Component)]
 pub struct Selected;

@@ -1,7 +1,7 @@
-use bevy::prelude::*;
 use crate::components::*;
-use crate::resources::*;
 use crate::item_relics::get_relic_visuals;
+use crate::resources::*;
+use bevy::prelude::*;
 
 pub fn update_health_ui(
     player_health_query: Query<&Health, (With<Player>, Changed<Health>)>,
@@ -109,7 +109,7 @@ pub fn update_spell_ui(
     if let Ok(active_spell) = player_query.get_single() {
         if let Ok(container) = container_query.get_single() {
             commands.entity(container).despawn_descendants();
-            
+
             commands.entity(container).with_children(|parent| {
                 for essence in &active_spell.essences {
                     let (color, text_code) = match essence.element {
@@ -119,7 +119,7 @@ pub fn update_spell_ui(
                         SpellElement::Stone => (Color::srgb(0.5, 0.3, 0.1), "S"),
                         SpellElement::Neutral => (Color::srgb(0.5, 0.5, 0.5), "N"),
                     };
-                    
+
                     let mut tooltip_text = String::new();
                     match essence.element {
                         SpellElement::Fire => tooltip_text.push_str("Fire Essence\n"),
@@ -128,33 +128,42 @@ pub fn update_spell_ui(
                         SpellElement::Stone => tooltip_text.push_str("Stone Essence\n"),
                         SpellElement::Neutral => tooltip_text.push_str("Essence\n"),
                     }
-                    if essence.damage > 0 { tooltip_text.push_str(&format!("+{} Damage\n", essence.damage)); }
-                    if essence.block > 0 { tooltip_text.push_str(&format!("+{} Block\n", essence.block)); }
+                    if essence.damage > 0 {
+                        tooltip_text.push_str(&format!("+{} Damage\n", essence.damage));
+                    }
+                    if essence.block > 0 {
+                        tooltip_text.push_str(&format!("+{} Block\n", essence.block));
+                    }
 
-                    parent.spawn((
-                        NodeBundle {
-                            style: Style {
-                                width: Val::Px(24.0),
-                                height: Val::Px(24.0),
-                                margin: UiRect::right(Val::Px(4.0)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                border: UiRect::all(Val::Px(1.0)),
+                    parent
+                        .spawn((
+                            NodeBundle {
+                                style: Style {
+                                    width: Val::Px(24.0),
+                                    height: Val::Px(24.0),
+                                    margin: UiRect::right(Val::Px(4.0)),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    ..default()
+                                },
+                                background_color: color.into(),
+                                border_color: Color::WHITE.into(),
                                 ..default()
                             },
-                            background_color: color.into(),
-                            border_color: Color::WHITE.into(),
-                            ..default()
-                        },
-                        Interaction::default(),
-                        Tooltip { text: tooltip_text },
-                    )).with_children(|p| {
-                        p.spawn(TextBundle::from_section(text_code, TextStyle {
-                            font: Handle::default(),
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                        }));
-                    });
+                            Interaction::default(),
+                            Tooltip { text: tooltip_text },
+                        ))
+                        .with_children(|p| {
+                            p.spawn(TextBundle::from_section(
+                                text_code,
+                                TextStyle {
+                                    font: Handle::default(),
+                                    font_size: 16.0,
+                                    color: Color::WHITE,
+                                },
+                            ));
+                        });
                 }
             });
         }
@@ -171,40 +180,51 @@ pub fn update_relic_ui(
     let spawn_relics = |parent: &mut ChildBuilder, relics: &RelicStore| {
         for relic in &relics.relics {
             let (text, tooltip, color) = get_relic_visuals(relic);
-            
-            parent.spawn((
-                NodeBundle {
-                    style: Style {
-                        margin: UiRect::right(Val::Px(5.0)),
-                        padding: UiRect::all(Val::Px(3.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        width: Val::Px(30.0),
-                        height: Val::Px(30.0),
+
+            parent
+                .spawn((
+                    NodeBundle {
+                        style: Style {
+                            margin: UiRect::right(Val::Px(5.0)),
+                            padding: UiRect::all(Val::Px(3.0)),
+                            border: UiRect::all(Val::Px(1.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            width: Val::Px(30.0),
+                            height: Val::Px(30.0),
+                            ..default()
+                        },
+                        background_color: color.into(),
+                        border_color: Color::WHITE.into(),
                         ..default()
                     },
-                    background_color: color.into(),
-                    border_color: Color::WHITE.into(),
-                    ..default()
-                },
-                Interaction::None,
-                RelicIcon { relic: *relic },
-                Tooltip { text: tooltip.to_string() },
-            )).with_children(|p| {
-                p.spawn(TextBundle::from_section(text, TextStyle {
-                    font_size: 16.0,
-                    color: Color::WHITE,
-                    font: Handle::default(),
-                }));
-            });
+                    Interaction::None,
+                    RelicIcon { relic: *relic },
+                    Tooltip {
+                        text: tooltip.to_string(),
+                    },
+                ))
+                .with_children(|p| {
+                    p.spawn(TextBundle::from_section(
+                        text,
+                        TextStyle {
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                            font: Handle::default(),
+                        },
+                    ));
+                });
         }
     };
 
     if !player_relic_query.is_empty() || !ui_added.is_empty() {
-        if let (Ok(relics), Ok(ui_entity)) = (player_relics_all.get_single(), relic_ui_query.get_single()) {
+        if let (Ok(relics), Ok(ui_entity)) =
+            (player_relics_all.get_single(), relic_ui_query.get_single())
+        {
             commands.entity(ui_entity).despawn_descendants();
-            commands.entity(ui_entity).with_children(|parent| spawn_relics(parent, relics));
+            commands
+                .entity(ui_entity)
+                .with_children(|parent| spawn_relics(parent, relics));
         }
     }
 }

@@ -1,25 +1,25 @@
-use bevy::prelude::*;
+use crate::common::spawn_card_visual;
 use crate::components::*;
+use crate::item_cards::generate_random_card;
+use crate::item_potions::{Potion, get_potion_name};
+use crate::item_relics::{Relic, get_relic_name};
 use crate::resources::*;
 use crate::states::*;
-use crate::item_cards::generate_random_card;
-use crate::item_relics::{Relic, get_relic_name};
-use crate::item_potions::{Potion, get_potion_name};
-use rand::{thread_rng, Rng};
-use crate::common::spawn_card_visual;
+use bevy::prelude::*;
+use rand::{Rng, thread_rng};
 
 pub fn setup_shop_screen(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     player_query: Query<&Gold, With<Player>>,
     run_state: Res<RunState>,
-    mut shop_store: ResMut<ShopStore>
+    mut shop_store: ResMut<ShopStore>,
 ) {
     let gold = player_query.single().amount;
 
     if !shop_store.generated {
         let mut rng = thread_rng();
-        
+
         // Generate Cards
         shop_store.cards.clear();
         for _ in 0..3 {
@@ -31,7 +31,13 @@ pub fn setup_shop_screen(
         // Generate Relic
         shop_store.relics.clear();
         use rand::seq::SliceRandom;
-        let all_relics = vec![Relic::Vajra, Relic::BurningBlood, Relic::Anchor, Relic::OddlySmoothStone, Relic::BagOfMarbles];
+        let all_relics = vec![
+            Relic::Vajra,
+            Relic::BurningBlood,
+            Relic::Anchor,
+            Relic::OddlySmoothStone,
+            Relic::BagOfMarbles,
+        ];
         let relic = *all_relics.choose(&mut rng).unwrap();
         let cost = rng.gen_range(100..150);
         shop_store.relics.push(Some((relic, cost)));
@@ -59,170 +65,212 @@ pub fn setup_shop_screen(
         SceneBackground,
     ));
 
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                background_color: Color::srgba(0.1, 0.1, 0.2, 0.7).into(),
                 ..default()
             },
-            background_color: Color::srgba(0.1, 0.1, 0.2, 0.7).into(),
-            ..default()
-        },
-        ShopUI,
-    )).with_children(|parent| {
-        parent.spawn((
-            TextBundle::from_section(format!("Shop - Gold: {}", gold), TextStyle {
-                font: Handle::default(),
-                font_size: 40.0,
-                color: Color::srgb(1.0, 0.84, 0.0),
-            }),
-            ShopGoldText,
-        ));
+            ShopUI,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                TextBundle::from_section(
+                    format!("Shop - Gold: {}", gold),
+                    TextStyle {
+                        font: Handle::default(),
+                        font_size: 40.0,
+                        color: Color::srgb(1.0, 0.84, 0.0),
+                    },
+                ),
+                ShopGoldText,
+            ));
 
-        // Shop Items Container
-        parent.spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                margin: UiRect::all(Val::Px(20.0)),
-                ..default()
-            },
-            ..default()
-        }).with_children(|items| {
-            // Sell a Card
-            for (index, item) in shop_store.cards.iter().enumerate() {
-                if let Some((card, cost)) = item {
-                    spawn_card_visual(
-                        items,
-                        &asset_server,
-                        card,
-                        (
-                            Button,
-                            Interaction::default(),
-                            BuyCardButton { card: card.clone(), cost: *cost, index },
-                        ),
-                        |card_ui| {
-                            card_ui.spawn(TextBundle::from_section(format!("{}g", cost), TextStyle {
-                                font: Handle::default(),
-                                font_size: 20.0,
-                                color: Color::srgb(1.0, 0.84, 0.0),
-                            }));
-                        }
-                    );
-                }
-            }
-
-            // Sell a Relic
-            for (index, item) in shop_store.relics.iter().enumerate() {
-                if let Some((relic, cost)) = item {
-                    items.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(120.0),
-                                height: Val::Px(160.0),
-                                margin: UiRect::all(Val::Px(10.0)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                flex_direction: FlexDirection::Column,
-                                border: UiRect::all(Val::Px(2.0)),
-                                ..default()
-                            },
-                            background_color: Color::srgb(0.4, 0.2, 0.2).into(),
-                            border_color: Color::WHITE.into(),
-                            ..default()
-                        },
-                        BuyRelicButton { relic: *relic, cost: *cost, index },
-                    )).with_children(|b| {
-                        b.spawn(TextBundle::from_section(format!("{}\n{}g", get_relic_name(relic), cost), TextStyle {
-                            font: Handle::default(),
-                            font_size: 20.0,
-                            color: Color::WHITE,
-                        }));
-                    });
-                }
-            }
-
-            // Sell a Potion
-            for (index, item) in shop_store.potions.iter().enumerate() {
-                if let Some((potion, cost)) = item {
-                    let name = get_potion_name(potion);
-                    items.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(120.0),
-                                height: Val::Px(160.0),
-                                margin: UiRect::all(Val::Px(10.0)),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                flex_direction: FlexDirection::Column,
-                                border: UiRect::all(Val::Px(2.0)),
-                                ..default()
-                            },
-                            background_color: Color::srgb(0.2, 0.5, 0.2).into(),
-                            border_color: Color::WHITE.into(),
-                            ..default()
-                        },
-                        BuyPotionButton { potion: *potion, cost: *cost, index },
-                    )).with_children(|b| {
-                        b.spawn(TextBundle::from_section(format!("{}\n{}g", name, cost), TextStyle {
-                            font: Handle::default(),
-                            font_size: 20.0,
-                            color: Color::WHITE,
-                        }));
-                    });
-                }
-            }
-
-            // Remove Card Service
-            let remove_cost = 75;
-            items.spawn((
-                ButtonBundle {
+            // Shop Items Container
+            parent
+                .spawn(NodeBundle {
                     style: Style {
-                        width: Val::Px(120.0),
-                        height: Val::Px(160.0),
-                        margin: UiRect::all(Val::Px(10.0)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        flex_direction: FlexDirection::Column,
-                        border: UiRect::all(Val::Px(2.0)),
+                        flex_direction: FlexDirection::Row,
+                        margin: UiRect::all(Val::Px(20.0)),
                         ..default()
                     },
-                    background_color: Color::srgb(0.4, 0.2, 0.4).into(),
-                    border_color: Color::WHITE.into(),
                     ..default()
-                },
-                RemoveCardServiceButton { cost: remove_cost },
-            )).with_children(|b| {
-                b.spawn(TextBundle::from_section(format!("Remove Card\n{}g", remove_cost), TextStyle {
-                    font: Handle::default(),
-                    font_size: 20.0,
-                    color: Color::WHITE,
-                }));
-            });
-        });
+                })
+                .with_children(|items| {
+                    // Sell a Card
+                    for (index, item) in shop_store.cards.iter().enumerate() {
+                        if let Some((card, cost)) = item {
+                            spawn_card_visual(
+                                items,
+                                &asset_server,
+                                card,
+                                (
+                                    Button,
+                                    Interaction::default(),
+                                    BuyCardButton {
+                                        card: card.clone(),
+                                        cost: *cost,
+                                        index,
+                                    },
+                                ),
+                                |card_ui| {
+                                    card_ui.spawn(TextBundle::from_section(
+                                        format!("{}g", cost),
+                                        TextStyle {
+                                            font: Handle::default(),
+                                            font_size: 20.0,
+                                            color: Color::srgb(1.0, 0.84, 0.0),
+                                        },
+                                    ));
+                                },
+                            );
+                        }
+                    }
 
-        // Leave Button
-        parent.spawn((
-            ButtonBundle {
-                style: Style {
-                    padding: UiRect::all(Val::Px(10.0)),
-                    ..default()
-                },
-                background_color: Color::srgb(0.5, 0.1, 0.1).into(),
-                ..default()
-            },
-            LeaveShopButton,
-        )).with_children(|p| {
-            p.spawn(TextBundle::from_section("Leave Shop", TextStyle {
-                font: Handle::default(),
-                font_size: 30.0,
-                color: Color::WHITE,
-            }));
+                    // Sell a Relic
+                    for (index, item) in shop_store.relics.iter().enumerate() {
+                        if let Some((relic, cost)) = item {
+                            items
+                                .spawn((
+                                    ButtonBundle {
+                                        style: Style {
+                                            width: Val::Px(120.0),
+                                            height: Val::Px(160.0),
+                                            margin: UiRect::all(Val::Px(10.0)),
+                                            justify_content: JustifyContent::Center,
+                                            align_items: AlignItems::Center,
+                                            flex_direction: FlexDirection::Column,
+                                            border: UiRect::all(Val::Px(2.0)),
+                                            ..default()
+                                        },
+                                        background_color: Color::srgb(0.4, 0.2, 0.2).into(),
+                                        border_color: Color::WHITE.into(),
+                                        ..default()
+                                    },
+                                    BuyRelicButton {
+                                        relic: *relic,
+                                        cost: *cost,
+                                        index,
+                                    },
+                                ))
+                                .with_children(|b| {
+                                    b.spawn(TextBundle::from_section(
+                                        format!("{}\n{}g", get_relic_name(relic), cost),
+                                        TextStyle {
+                                            font: Handle::default(),
+                                            font_size: 20.0,
+                                            color: Color::WHITE,
+                                        },
+                                    ));
+                                });
+                        }
+                    }
+
+                    // Sell a Potion
+                    for (index, item) in shop_store.potions.iter().enumerate() {
+                        if let Some((potion, cost)) = item {
+                            let name = get_potion_name(potion);
+                            items
+                                .spawn((
+                                    ButtonBundle {
+                                        style: Style {
+                                            width: Val::Px(120.0),
+                                            height: Val::Px(160.0),
+                                            margin: UiRect::all(Val::Px(10.0)),
+                                            justify_content: JustifyContent::Center,
+                                            align_items: AlignItems::Center,
+                                            flex_direction: FlexDirection::Column,
+                                            border: UiRect::all(Val::Px(2.0)),
+                                            ..default()
+                                        },
+                                        background_color: Color::srgb(0.2, 0.5, 0.2).into(),
+                                        border_color: Color::WHITE.into(),
+                                        ..default()
+                                    },
+                                    BuyPotionButton {
+                                        potion: *potion,
+                                        cost: *cost,
+                                        index,
+                                    },
+                                ))
+                                .with_children(|b| {
+                                    b.spawn(TextBundle::from_section(
+                                        format!("{}\n{}g", name, cost),
+                                        TextStyle {
+                                            font: Handle::default(),
+                                            font_size: 20.0,
+                                            color: Color::WHITE,
+                                        },
+                                    ));
+                                });
+                        }
+                    }
+
+                    // Remove Card Service
+                    let remove_cost = 75;
+                    items
+                        .spawn((
+                            ButtonBundle {
+                                style: Style {
+                                    width: Val::Px(120.0),
+                                    height: Val::Px(160.0),
+                                    margin: UiRect::all(Val::Px(10.0)),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    flex_direction: FlexDirection::Column,
+                                    border: UiRect::all(Val::Px(2.0)),
+                                    ..default()
+                                },
+                                background_color: Color::srgb(0.4, 0.2, 0.4).into(),
+                                border_color: Color::WHITE.into(),
+                                ..default()
+                            },
+                            RemoveCardServiceButton { cost: remove_cost },
+                        ))
+                        .with_children(|b| {
+                            b.spawn(TextBundle::from_section(
+                                format!("Remove Card\n{}g", remove_cost),
+                                TextStyle {
+                                    font: Handle::default(),
+                                    font_size: 20.0,
+                                    color: Color::WHITE,
+                                },
+                            ));
+                        });
+                });
+
+            // Leave Button
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.5, 0.1, 0.1).into(),
+                        ..default()
+                    },
+                    LeaveShopButton,
+                ))
+                .with_children(|p| {
+                    p.spawn(TextBundle::from_section(
+                        "Leave Shop",
+                        TextStyle {
+                            font: Handle::default(),
+                            font_size: 30.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
         });
-    });
 }
 
 pub fn shop_interaction_system(
@@ -231,10 +279,22 @@ pub fn shop_interaction_system(
     mut player_query: Query<(&mut Gold, &mut RelicStore, &mut PotionStore), With<Player>>,
     mut shop_store: ResMut<ShopStore>,
     mut deck: ResMut<Deck>,
-    mut card_interaction: Query<(Entity, &Interaction, &BuyCardButton), (Changed<Interaction>, With<BuyCardButton>)>,
-    mut relic_interaction: Query<(Entity, &Interaction, &BuyRelicButton), (Changed<Interaction>, With<BuyRelicButton>)>,
-    mut potion_interaction: Query<(Entity, &Interaction, &BuyPotionButton), (Changed<Interaction>, With<BuyPotionButton>)>,
-    mut remove_service_interaction: Query<(&Interaction, &RemoveCardServiceButton), (Changed<Interaction>, With<RemoveCardServiceButton>)>,
+    mut card_interaction: Query<
+        (Entity, &Interaction, &BuyCardButton),
+        (Changed<Interaction>, With<BuyCardButton>),
+    >,
+    mut relic_interaction: Query<
+        (Entity, &Interaction, &BuyRelicButton),
+        (Changed<Interaction>, With<BuyRelicButton>),
+    >,
+    mut potion_interaction: Query<
+        (Entity, &Interaction, &BuyPotionButton),
+        (Changed<Interaction>, With<BuyPotionButton>),
+    >,
+    mut remove_service_interaction: Query<
+        (&Interaction, &RemoveCardServiceButton),
+        (Changed<Interaction>, With<RemoveCardServiceButton>),
+    >,
 ) {
     let (mut gold, mut relics, mut potions) = player_query.single_mut();
 
@@ -286,82 +346,97 @@ pub fn update_shop_gold_ui(
     }
 }
 
-pub fn setup_shop_remove_screen(mut commands: Commands, asset_server: Res<AssetServer>, deck: Res<Deck>) {
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                padding: UiRect::all(Val::Px(20.0)),
-                ..default()
-            },
-            background_color: Color::srgba(0.05, 0.05, 0.05, 0.98).into(),
-            z_index: ZIndex::Global(100),
-            ..default()
-        },
-        ShopRemoveUI,
-    )).with_children(|parent| {
-        parent.spawn(TextBundle::from_section("Select Card to Remove (Cost: 75g)", TextStyle {
-            font: Handle::default(),
-            font_size: 40.0,
-            color: Color::WHITE,
-        }));
-
-        parent.spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                flex_wrap: FlexWrap::Wrap,
-                justify_content: JustifyContent::Center,
-                margin: UiRect::top(Val::Px(20.0)),
-                row_gap: Val::Px(10.0),
-                column_gap: Val::Px(10.0),
-                ..default()
-            },
-            ..default()
-        }).with_children(|grid| {
-            for (index, card) in deck.cards.iter().enumerate() {
-                spawn_card_visual(
-                    grid,
-                    &asset_server,
-                    card,
-                    (
-                        Button,
-                        Interaction::default(),
-                        CardToRemoveButton { index },
-                    ),
-                    |_| {}
-                );
-            }
-        });
-
-        parent.spawn((
-            ButtonBundle {
+pub fn setup_shop_remove_screen(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    deck: Res<Deck>,
+) {
+    commands
+        .spawn((
+            NodeBundle {
                 style: Style {
-                    margin: UiRect::top(Val::Px(30.0)),
-                    padding: UiRect::all(Val::Px(15.0)),
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(20.0)),
                     ..default()
                 },
-                background_color: Color::srgb(0.3, 0.3, 0.3).into(),
+                background_color: Color::srgba(0.05, 0.05, 0.05, 0.98).into(),
+                z_index: ZIndex::Global(100),
                 ..default()
             },
-            CancelRemoveButton,
-        )).with_children(|p| {
-            p.spawn(TextBundle::from_section("Cancel", TextStyle {
-                font: Handle::default(),
-                font_size: 25.0,
-                color: Color::WHITE,
-            }));
+            ShopRemoveUI,
+        ))
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "Select Card to Remove (Cost: 75g)",
+                TextStyle {
+                    font: Handle::default(),
+                    font_size: 40.0,
+                    color: Color::WHITE,
+                },
+            ));
+
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        flex_wrap: FlexWrap::Wrap,
+                        justify_content: JustifyContent::Center,
+                        margin: UiRect::top(Val::Px(20.0)),
+                        row_gap: Val::Px(10.0),
+                        column_gap: Val::Px(10.0),
+                        ..default()
+                    },
+                    ..default()
+                })
+                .with_children(|grid| {
+                    for (index, card) in deck.cards.iter().enumerate() {
+                        spawn_card_visual(
+                            grid,
+                            &asset_server,
+                            card,
+                            (Button, Interaction::default(), CardToRemoveButton { index }),
+                            |_| {},
+                        );
+                    }
+                });
+
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            margin: UiRect::top(Val::Px(30.0)),
+                            padding: UiRect::all(Val::Px(15.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.3, 0.3, 0.3).into(),
+                        ..default()
+                    },
+                    CancelRemoveButton,
+                ))
+                .with_children(|p| {
+                    p.spawn(TextBundle::from_section(
+                        "Cancel",
+                        TextStyle {
+                            font: Handle::default(),
+                            font_size: 25.0,
+                            color: Color::WHITE,
+                        },
+                    ));
+                });
         });
-    });
 }
 
 pub fn shop_remove_system(
     mut next_state: ResMut<NextState<GameState>>,
     mut deck: ResMut<Deck>,
     mut player_query: Query<&mut Gold, With<Player>>,
-    card_query: Query<(&Interaction, &CardToRemoveButton), (Changed<Interaction>, With<CardToRemoveButton>)>,
+    card_query: Query<
+        (&Interaction, &CardToRemoveButton),
+        (Changed<Interaction>, With<CardToRemoveButton>),
+    >,
     cancel_query: Query<&Interaction, (Changed<Interaction>, With<CancelRemoveButton>)>,
 ) {
     for (interaction, button) in &card_query {

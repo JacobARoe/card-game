@@ -1,9 +1,9 @@
-use bevy::prelude::*;
 use crate::components::Card;
 use crate::components::CharacterClass;
 use crate::components::NodeType;
-use crate::item_relics::Relic;
 use crate::item_potions::Potion;
+use crate::item_relics::Relic;
+use bevy::prelude::*;
 
 #[derive(Resource, Default)]
 pub struct Deck {

@@ -1,120 +1,237 @@
 use bevy::prelude::*;
 
-mod components;
-mod resources;
-mod states;
+mod cli;
 mod common;
-mod ui;
+mod components;
+mod enemies;
+mod item_cards;
+mod item_potions;
+mod item_relics;
+mod resources;
 mod scene_battle;
-mod scene_map;
-mod scene_rest;
-mod scene_shop;
-mod scene_menu;
+mod scene_bonus_select;
+mod scene_character_select;
 mod scene_deck;
 mod scene_discard;
 mod scene_event;
-mod item_cards;
-mod item_relics;
-mod item_potions;
-mod scene_rewards;
 mod scene_game_over;
-mod enemies;
-mod scene_character_select;
-mod scene_bonus_select;
+mod scene_map;
+mod scene_menu;
+mod scene_rest;
+mod scene_rewards;
+mod scene_shop;
+mod states;
+mod ui;
 
-use components::*;
-use states::*;
-use resources::*;
+#[cfg(test)]
+mod tests;
+
 use common::*;
-use ui::*;
+use components::*;
+use enemies::*;
+use resources::*;
 use scene_battle::*;
-use scene_map::*;
-use scene_rest::*;
-use scene_shop::*;
-use scene_menu::*;
+use scene_bonus_select::*;
+use scene_character_select::*;
 use scene_deck::*;
 use scene_discard::*;
 use scene_event::*;
-use scene_rewards::*;
 use scene_game_over::*;
-use enemies::*;
-use scene_character_select::*;
-use scene_bonus_select::*;
+use scene_map::*;
+use scene_menu::*;
+use scene_rest::*;
+use scene_rewards::*;
+use scene_shop::*;
+use states::*;
+use ui::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins) // Adds windowing, input, etc.
+        .add_plugins(cli::CliPlugin)
         .init_state::<GameState>()
         .init_state::<TurnState>()
         .init_resource::<RunState>()
         .add_systems(Startup, setup_camera)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
-        .add_systems(Update, (menu_interaction_system, resize_background_system).run_if(in_state(GameState::MainMenu)))
+        .add_systems(
+            Update,
+            (menu_interaction_system, resize_background_system)
+                .run_if(in_state(GameState::MainMenu)),
+        )
         .add_systems(OnExit(GameState::MainMenu), despawn_screen::<MainMenuUI>)
         .add_systems(OnEnter(GameState::Battle), setup_battle)
         .add_systems(
             Update,
             (
-                play_card_system.run_if(in_state(TurnState::PlayerTurn)),
-                enemy_turn_system.run_if(in_state(TurnState::EnemyTurn)),
-                card_hover_system,
-                update_health_ui,
-                update_energy_ui,
-                update_spell_ui,
-                update_status_visuals_system,
-                tooltip_system,
-                update_relic_ui,
-                update_potion_ui,
-                potion_interaction_system,
-                update_pile_ui,
-                update_particles_system,
-                update_damage_flash_system,
-                update_block_flash_system,
-                update_enemy_tooltip_system,
-                end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
-                discard_pile_click_system.run_if(in_state(TurnState::PlayerTurn)),
-                resize_background_system,
-                enemy_selection_system,
-            ).run_if(in_state(GameState::Battle))
+                (
+                    card_interaction_system,
+                    process_play_card_requests.run_if(in_state(TurnState::PlayerTurn)),
+                    enemy_turn_system.run_if(in_state(TurnState::EnemyTurn)),
+                    card_hover_system,
+                    update_health_ui,
+                    update_energy_ui,
+                    update_spell_ui,
+                    update_combo_ui_system,
+                    update_status_visuals_system,
+                    tooltip_system,
+                    update_relic_ui,
+                ),
+                (
+                    update_potion_ui,
+                    potion_interaction_system,
+                    update_pile_ui,
+                    update_particles_system,
+                    update_damage_flash_system,
+                    update_block_flash_system,
+                    update_enemy_tooltip_system,
+                    end_turn_button_system.run_if(in_state(TurnState::PlayerTurn)),
+                    process_end_turn_requests.run_if(in_state(TurnState::PlayerTurn)),
+                    discard_pile_click_system.run_if(in_state(TurnState::PlayerTurn)),
+                    reflex_input_system,
+                    process_reflex_requests,
+                    update_reflex_ui_system,
+                    resize_background_system,
+                    enemy_selection_system,
+                ),
+            )
+                .run_if(in_state(GameState::Battle)),
+        )
+        .add_systems(
+            Update,
+            enemy_attack_animating_system.run_if(in_state(TurnState::EnemyAttackAnimating)),
+        )
+        .add_systems(
+            Update,
+            player_attack_animating_system.run_if(in_state(TurnState::PlayerAttackAnimating)),
         )
         .add_systems(OnEnter(TurnState::PlayerTurnStart), draw_cards_system)
         .add_systems(OnEnter(TurnState::PlayerTurnEnd), discard_hand_system)
-        .add_systems(OnExit(GameState::Battle), (cleanup_battle_deck, despawn_screen::<BattleEntity>, reset_turn_state).chain())
+        .add_systems(
+            OnExit(GameState::Battle),
+            (
+                cleanup_battle_deck,
+                despawn_screen::<BattleEntity>,
+                reset_turn_state,
+            )
+                .chain(),
+        )
         .add_systems(OnEnter(GameState::Victory), setup_victory_screen)
-        .add_systems(Update, reward_interaction_system.run_if(in_state(GameState::Victory)))
+        .add_systems(
+            Update,
+            reward_interaction_system.run_if(in_state(GameState::Victory)),
+        )
         .add_systems(OnExit(GameState::Victory), despawn_screen::<RewardUI>)
-        .add_systems(OnEnter(GameState::RewardSelectCard), setup_reward_select_card_screen)
-        .add_systems(Update, reward_select_card_interaction_system.run_if(in_state(GameState::RewardSelectCard)))
-        .add_systems(OnExit(GameState::RewardSelectCard), despawn_screen::<RewardSelectCardUI>)
+        .add_systems(
+            OnEnter(GameState::RewardSelectCard),
+            setup_reward_select_card_screen,
+        )
+        .add_systems(
+            Update,
+            reward_select_card_interaction_system.run_if(in_state(GameState::RewardSelectCard)),
+        )
+        .add_systems(
+            OnExit(GameState::RewardSelectCard),
+            despawn_screen::<RewardSelectCardUI>,
+        )
         .add_systems(OnEnter(GameState::Map), setup_map_screen)
-        .add_systems(Update, (map_interaction_system, tooltip_system).run_if(in_state(GameState::Map)))
-        .add_systems(OnExit(GameState::Map), (despawn_screen::<MapUI>, despawn_screen::<TooltipUi>))
+        .add_systems(
+            Update,
+            (
+                map_interaction_system,
+                process_map_node_select_requests,
+                tooltip_system,
+            )
+                .run_if(in_state(GameState::Map)),
+        )
+        .add_systems(
+            OnExit(GameState::Map),
+            (despawn_screen::<MapUI>, despawn_screen::<TooltipUi>),
+        )
         .add_systems(OnEnter(GameState::Shop), setup_shop_screen)
-        .add_systems(Update, (shop_interaction_system, shop_nav_system, update_shop_gold_ui, resize_background_system).run_if(in_state(GameState::Shop)))
+        .add_systems(
+            Update,
+            (
+                shop_interaction_system,
+                shop_nav_system,
+                update_shop_gold_ui,
+                resize_background_system,
+            )
+                .run_if(in_state(GameState::Shop)),
+        )
         .add_systems(OnExit(GameState::Shop), despawn_screen::<ShopUI>)
         .add_systems(OnEnter(GameState::ShopRemoveCard), setup_shop_remove_screen)
-        .add_systems(Update, shop_remove_system.run_if(in_state(GameState::ShopRemoveCard)))
-        .add_systems(OnExit(GameState::ShopRemoveCard), despawn_screen::<ShopRemoveUI>)
+        .add_systems(
+            Update,
+            shop_remove_system.run_if(in_state(GameState::ShopRemoveCard)),
+        )
+        .add_systems(
+            OnExit(GameState::ShopRemoveCard),
+            despawn_screen::<ShopRemoveUI>,
+        )
         .add_systems(OnEnter(GameState::Rest), setup_rest_screen)
-        .add_systems(Update, (rest_interaction_system, resize_background_system).run_if(in_state(GameState::Rest)))
+        .add_systems(
+            Update,
+            (rest_interaction_system, resize_background_system).run_if(in_state(GameState::Rest)),
+        )
         .add_systems(OnExit(GameState::Rest), despawn_screen::<RestUI>)
         .add_systems(OnEnter(GameState::GameOver), setup_game_over_screen)
-        .add_systems(Update, game_over_interaction_system.run_if(in_state(GameState::GameOver)))
-        .add_systems(OnExit(GameState::GameOver), (despawn_screen::<GameOverUI>, setup_game))
+        .add_systems(
+            Update,
+            game_over_interaction_system.run_if(in_state(GameState::GameOver)),
+        )
+        .add_systems(
+            OnExit(GameState::GameOver),
+            (despawn_screen::<GameOverUI>, setup_game),
+        )
         .add_systems(OnEnter(GameState::ViewDeck), setup_view_deck_screen)
-        .add_systems(Update, view_deck_interaction_system.run_if(in_state(GameState::ViewDeck)))
+        .add_systems(
+            Update,
+            view_deck_interaction_system.run_if(in_state(GameState::ViewDeck)),
+        )
         .add_systems(OnExit(GameState::ViewDeck), despawn_screen::<ViewDeckUI>)
-        .add_systems(OnEnter(TurnState::ViewingDiscard), setup_view_discard_overlay)
-        .add_systems(Update, view_discard_interaction_system.run_if(in_state(TurnState::ViewingDiscard)))
-        .add_systems(OnExit(TurnState::ViewingDiscard), despawn_screen::<ViewDiscardUI>)
+        .add_systems(
+            OnEnter(TurnState::ViewingDiscard),
+            setup_view_discard_overlay,
+        )
+        .add_systems(
+            Update,
+            view_discard_interaction_system.run_if(in_state(TurnState::ViewingDiscard)),
+        )
+        .add_systems(
+            OnExit(TurnState::ViewingDiscard),
+            despawn_screen::<ViewDiscardUI>,
+        )
         .add_systems(OnEnter(GameState::Event), setup_event_screen)
-        .add_systems(Update, event_interaction_system.run_if(in_state(GameState::Event)))
+        .add_systems(
+            Update,
+            event_interaction_system.run_if(in_state(GameState::Event)),
+        )
         .add_systems(OnExit(GameState::Event), despawn_screen::<EventUI>)
-        .add_systems(OnEnter(GameState::CharacterSelect), setup_character_select_screen)
-        .add_systems(Update, (character_select_interaction_system, resize_background_system).run_if(in_state(GameState::CharacterSelect)))
-        .add_systems(OnExit(GameState::CharacterSelect), (despawn_screen::<CharacterSelectUI>, setup_game))
+        .add_systems(
+            OnEnter(GameState::CharacterSelect),
+            setup_character_select_screen,
+        )
+        .add_systems(
+            Update,
+            (
+                character_select_interaction_system,
+                resize_background_system,
+            )
+                .run_if(in_state(GameState::CharacterSelect)),
+        )
+        .add_systems(
+            OnExit(GameState::CharacterSelect),
+            (despawn_screen::<CharacterSelectUI>, setup_game),
+        )
         .add_systems(OnEnter(GameState::BonusSelect), setup_bonus_select_screen)
-        .add_systems(Update, bonus_select_interaction_system.run_if(in_state(GameState::BonusSelect)))
-        .add_systems(OnExit(GameState::BonusSelect), despawn_screen::<BonusSelectUI>)
+        .add_systems(
+            Update,
+            bonus_select_interaction_system.run_if(in_state(GameState::BonusSelect)),
+        )
+        .add_systems(
+            OnExit(GameState::BonusSelect),
+            despawn_screen::<BonusSelectUI>,
+        )
         .run();
 }
